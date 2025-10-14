@@ -1,6 +1,18 @@
-import type { NextAuthConfig } from "next-auth";
+import type { NextAuthOptions } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import type { Session } from "next-auth";
+
+// Extend the built-in session types
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id: string;
+      name?: string | null;
+      email?: string | null;
+      image?: string | null;
+    };
+  }
+}
 
 export const authConfig = {
   pages: {
@@ -20,23 +32,6 @@ export const authConfig = {
       }
       return session;
     },
-    authorized({
-      auth,
-      request: { nextUrl },
-    }: {
-      auth: any;
-      request: { nextUrl: any };
-    }) {
-      const isLoggedIn = !!auth?.user;
-      const isOnDashboard = nextUrl.pathname.startsWith("/dashboard");
-      if (isOnDashboard) {
-        if (isLoggedIn) return true;
-        return false; // Redirect unauthenticated users to login page
-      } else if (isLoggedIn) {
-        return Response.redirect(new URL("/dashboard", nextUrl));
-      }
-      return true;
-    },
   },
   providers: [], // Add providers with an empty array for now
-} satisfies NextAuthConfig;
+} satisfies NextAuthOptions;

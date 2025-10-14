@@ -1,7 +1,6 @@
-"user server";
+"use server";
 
 import NextAuth from "next-auth";
-import AuthError from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
@@ -13,11 +12,11 @@ import { redirect } from "next/navigation";
 // 1. Basic sign-in schema
 const signInSchema = z.object({
   email: z
-    .string({ required_error: "Email is required" })
-    .min(1, "Email is required")
+    .string({ error: "Email is required" })
+    .min(1, "Email required")
     .email("Invalid email"),
   password: z
-    .string({ required_error: "Password is required " })
+    .string({ error: "Password is required " })
     .min(6, "Password must be more than 6 characters")
     .max(32, "Password must be less than 32 characters"),
 });
@@ -26,11 +25,11 @@ const signInSchema = z.object({
 const registerSchema = signInSchema
   .extend({
     name: z
-      .string({ required_error: "Name is required" })
+      .string({ error: "Name is required" })
       .min(3, "Name must be more than 3 characters")
       .max(100, "Name must be less than 100 characters"),
     confirm_password: z
-      .string({ required_error: "Please confirm your password" })
+      .string({ error: "Please confirm your password" })
       .min(6, "Password must be more than 6 characters")
       .max(32, "Password must be less than 32 characters"),
   })
@@ -65,6 +64,10 @@ export const { auth, signIn, signOut } = NextAuth({
   ...authConfig,
   providers: [
     Credentials({
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
       authorize: async (credentials) => {
         const parsedCredentials = signInSchema.safeParse(credentials);
 
@@ -98,10 +101,11 @@ export async function customSignIn(
   try {
     await signIn("credentials", formData);
   } catch (error) {
-    if (error instanceof AuthError) {
+    // Handle authentication errors
+    if (error && typeof error === 'object' && 'type' in error) {
       switch (error.type) {
-        case "CredentailsSignIn":
-          return "Invaild email or password";
+        case "CredentialsSignIn":
+          return "Invalid email or password";
         default:
           return "Something went wrong, Please try again.";
       }

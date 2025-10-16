@@ -1,5 +1,5 @@
 import { getProfileDTO } from "@/app/lib/dto";
-import { auth } from "@/app/actions/auth";
+import { auth } from "@/auth.config";
 import { notFound, redirect } from "next/navigation";
 import { getCurrentTranslations } from "@/app/lib/i18n";
 import { getCurrentUser } from "@/app/lib/dal";
@@ -24,7 +24,7 @@ export default async function EditProfilePage({ params }: PageProps) {
     
     // Allow users to edit their own profile OR admins to edit any profile
     if (!isOwnProfile && !isAdmin) {
-      redirect(`/profile/${slug}`);
+      redirect(`/dashboard/profile/${slug}`);
     }
 
     const { t } = await getCurrentTranslations();
@@ -34,10 +34,10 @@ export default async function EditProfilePage({ params }: PageProps) {
         <div className="w-full max-w-4xl">
           <Breadcrumbs
             breadcrumbs={[
-              { label: t('profile'), href: `/profile/${slug}` },
+              { label: t('profile'), href: `/dashboard/profile/${slug}` },
               {
                 label: t('editProfile'),
-                href: `/profile/${slug}/edit`,
+                href: `/dashboard/profile/${slug}/edit`,
                 active: true,
               },
             ]}

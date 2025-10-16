@@ -10,7 +10,7 @@ import { redirect } from "next/navigation";
 // Profile update schema
 const updateProfileSchema = z.object({
   name: z
-    .string({ required_error: "Name is required" })
+    .string({ error: "Name is required" })
     .min(3, "Name must be more than 3 characters")
     .max(100, "Name must be less than 100 characters"),
   isadmin: z.boolean(),
@@ -19,14 +19,14 @@ const updateProfileSchema = z.object({
 // Password change schema
 const changePasswordSchema = z.object({
   currentPassword: z
-    .string({ required_error: "Current password is required" })
+    .string({ error: "Current password is required" })
     .min(1, "Current password is required"),
   newPassword: z
-    .string({ required_error: "New password is required" })
+    .string({ error: "New password is required" })
     .min(6, "Password must be more than 6 characters")
     .max(32, "Password must be less than 32 characters"),
   confirmPassword: z
-    .string({ required_error: "Please confirm your password" })
+    .string({ error: "Please confirm your password" })
     .min(6, "Password must be more than 6 characters")
     .max(32, "Password must be less than 32 characters"),
 }).refine((data) => data.newPassword === data.confirmPassword, {

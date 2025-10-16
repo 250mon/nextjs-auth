@@ -1,5 +1,5 @@
 import { getProfileDTO } from "@/app/lib/dto";
-import { auth } from "@/app/actions/auth";
+import { auth } from "@/auth.config";
 import { notFound } from "next/navigation";
 import { getCurrentTranslations } from "@/app/lib/i18n";
 import { getCurrentUser } from "@/app/lib/dal";
@@ -41,14 +41,14 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
             <div className="flex gap-2">
               {isOwnProfile && (
                 <Link
-                  href={`/profile/${slug}/edit`}
+                  href={`/dashboard/profile/${slug}/edit`}
                   className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
                 > {t('editProfile')}
                 </Link>
               )}
               {isAdmin && !isOwnProfile && (
                 <Link
-                  href={`/profile/${slug}/edit`}
+                  href={`/dashboard/profile/${slug}/edit`}
                   className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
                 >
                   <ShieldCheckIcon className="w-4 h-4" />

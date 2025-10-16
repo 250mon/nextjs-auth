@@ -1,7 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
-import { auth } from "@/app/actions/auth";
+import { auth } from "@/auth.config";
 import { query } from "@/app/lib/db";
 import type { User } from "@/app/lib/definitions";
 

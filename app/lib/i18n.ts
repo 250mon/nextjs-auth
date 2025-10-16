@@ -13,10 +13,6 @@ export const translations = {
   en: {
     // Navigation Menu Items
     home: 'Home',
-    categories: 'Categories', 
-    items: 'Items',
-    skus: 'SKUs',
-    transactions: 'Transactions',
     settings: 'Settings',
     profile: 'Profile',
     signOut: 'Sign Out',
@@ -30,25 +26,11 @@ export const translations = {
     cancel: 'Cancel',
     search: 'Search',
     
-    // Transaction Types
-    createTransaction: 'Create Transaction',
-    inTransaction: 'IN',
-    outTransaction: 'OUT',
-    
     // Page Titles
     dashboard: 'Dashboard',
     userPreferences: 'User Preferences',
-    inventoryDashboard: 'Inventory Dashboard',
+    authenticationDashboard: 'Authentication Dashboard',
 
-    // Category Actions
-    createCategory: 'Create Category',
-
-    // Item Actions
-    createItem: 'Create Item',
-
-    // SKU Actions
-    createSKU: 'Create SKU',
-    
     // Profile Labels
     name: 'Name',
     email: 'Email',
@@ -76,10 +58,6 @@ export const translations = {
   ko: {
     // Navigation Menu Items  
     home: '홈',
-    categories: '카테고리',
-    items: '품목',
-    skus: '세부품목',
-    transactions: '거래',
     settings: '설정',
     profile: '프로필',
     signOut: '로그아웃',
@@ -93,25 +71,11 @@ export const translations = {
     cancel: '취소',
     search: '검색',
     
-    // Transaction Types
-    createTransaction: '거래 생성',
-    inTransaction: '입고',
-    outTransaction: '출고',
-    
     // Page Titles
     dashboard: '대시보드',
     userPreferences: '사용자 설정',
-    inventoryDashboard: '재고 대시보드',
-    
-    // Category Actions
-    createCategory: '카테고리 생성',
+    authenticationDashboard: '인증 대시보드',
 
-    // Item Actions
-    createItem: '품목 생성',
-
-    // SKU Actions
-    createSKU: '세부품목 생성',
-    
     // Profile Labels
     name: '이름',
     email: '이메일',

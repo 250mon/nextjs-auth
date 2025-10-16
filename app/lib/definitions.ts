@@ -22,51 +22,6 @@ export type UserTeam = {
   created_at: Date;
 };
 
-// Access control types
-export type ResourceType =
-  | "item"
-  | "sku"
-  | "transaction"
-  | "category"
-  | "user"
-  | "dashboard";
-
-export type TeamPermission = {
-  id: number;
-  resource_type: ResourceType;
-  team_id: number;
-  team_name: string;
-  permissions: {
-    member: {
-      read: boolean;
-      write: boolean;
-      delete: boolean;
-    };
-    lead: {
-      read: boolean;
-      write: boolean;
-      delete: boolean;
-    };
-    admin: {
-      read: boolean;
-      write: boolean;
-      delete: boolean;
-    };
-  };
-  created_at: Date;
-  updated_at: Date;
-};
-
-export type PagePermission = {
-  id: number;
-  page_path: string;
-  required_team_ids: number[];
-  required_team_names: string[];
-  fallback_type: "any" | "admin" | "none";
-  created_at: Date;
-  updated_at: Date;
-};
-
 export type User = {
   id: string;
   name: string;
@@ -78,7 +33,6 @@ export type User = {
   created_at: Date;
   updated_at: Date;
   settings?: UserSettings;
-  teams?: Team[];
 };
 
 // Inventory Management System

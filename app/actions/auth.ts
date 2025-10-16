@@ -1,29 +1,22 @@
 "use server";
 
-import NextAuth from "next-auth";
-import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { query } from "@/app/lib/db";
-import { authConfig } from "@/auth.config";
-import type { User } from "@/app/lib/definitions";
+import { signIn, signOut } from "@/auth.config";
 import { redirect } from "next/navigation";
 
-// 1. Basic sign-in schema
-const signInSchema = z.object({
-  email: z
-    .string({ error: "Email is required" })
-    .min(1, "Email required")
-    .email("Invalid email"),
-  password: z
-    .string({ error: "Password is required " })
-    .min(6, "Password must be more than 6 characters")
-    .max(32, "Password must be less than 32 characters"),
-});
-
-// 2. Register schema: extend + refine
-const registerSchema = signInSchema
-  .extend({
+// Register schema: extend + refine
+const registerSchema = z
+  .object({
+    email: z
+      .string({ error: "Email is required" })
+      .min(1, "Email required")
+      .email("Invalid email"),
+    password: z
+      .string({ error: "Password is required " })
+      .min(6, "Password must be more than 6 characters")
+      .max(32, "Password must be less than 32 characters"),
     name: z
       .string({ error: "Name is required" })
       .min(3, "Name must be more than 3 characters")
@@ -49,44 +42,6 @@ export type FormState =
       message?: string;
     }
   | undefined;
-
-async function getUser(email: string): Promise<User | undefined> {
-  try {
-    const result = await query("SELECT * FROM users WHERE email = $1", [email]);
-    return result.rows[0] as User;
-  } catch (error) {
-    console.error("Failed to fetch user:", error);
-    return undefined;
-  }
-}
-
-export const { auth, signIn, signOut } = NextAuth({
-  ...authConfig,
-  providers: [
-    Credentials({
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-      },
-      authorize: async (credentials) => {
-        const parsedCredentials = signInSchema.safeParse(credentials);
-
-        if (parsedCredentials.success) {
-          const { email, password } = parsedCredentials.data;
-          const user = await getUser(email);
-          if (!user) return null;
-          const passwordMatch = await bcrypt.compare(password, user.password);
-
-          if (passwordMatch) {
-            return user;
-          }
-        }
-
-        return null;
-      },
-    }),
-  ],
-});
 
 export async function customSignOut({
   redirectTo = "/",

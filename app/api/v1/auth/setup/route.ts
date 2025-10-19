@@ -1,13 +1,15 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/app/lib/db";
+import { addCorsHeaders } from "@/app/lib/api-middleware";
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
+    const origin = request.headers.get("origin");
     // Create api_refresh_tokens table if it doesn't exist
     await query(`
       CREATE TABLE IF NOT EXISTS api_refresh_tokens (
         id SERIAL PRIMARY KEY,
-        user_id VARCHAR(255) NOT NULL,
+        user_id VARCHAR(255) NOT NULL UNIQUE,
         token TEXT NOT NULL UNIQUE,
         expires_at TIMESTAMP NOT NULL,
         created_at TIMESTAMP DEFAULT NOW(),
@@ -37,16 +39,18 @@ export async function POST() {
       WHERE expires_at < NOW()
     `);
     
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: "API setup completed successfully",
     });
+    return addCorsHeaders(response, origin || undefined);
     
   } catch (error) {
     console.error("API setup error:", error);
-    return NextResponse.json(
+    const response = NextResponse.json(
       { success: false, error: "Failed to setup API" },
       { status: 500 }
     );
+    return addCorsHeaders(response, request.headers.get("origin") || undefined);
   }
 }

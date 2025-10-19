@@ -66,12 +66,27 @@ function getClientIdentifier(request: NextRequest): string {
 /**
  * CORS headers
  */
-export function getCorsHeaders(): Record<string, string> {
+export function getCorsHeaders(origin?: string): Record<string, string> {
+  // Get allowed origins from environment variable
+  const allowedOrigins = process.env.ALLOWED_ORIGINS 
+    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+    : ['http://localhost:3000', 'http://localhost:3001'];
+
+  // Determine the origin to allow
+  let allowedOrigin = '*';
+  if (origin && allowedOrigins.includes(origin)) {
+    allowedOrigin = origin;
+  } else if (allowedOrigins.length === 1 && allowedOrigins[0] !== '*') {
+    allowedOrigin = allowedOrigins[0];
+  }
+
   return {
-    "Access-Control-Allow-Origin": process.env.ALLOWED_ORIGINS || "*",
-    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, Accept, Origin",
+    "Access-Control-Allow-Credentials": "true",
     "Access-Control-Max-Age": "86400", // 24 hours
+    "Access-Control-Expose-Headers": "X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset",
   };
 }
 
@@ -80,9 +95,10 @@ export function getCorsHeaders(): Record<string, string> {
  */
 export function handleCors(request: NextRequest): NextResponse | null {
   if (request.method === "OPTIONS") {
+    const origin = request.headers.get("origin");
     return new NextResponse(null, {
       status: 200,
-      headers: getCorsHeaders(),
+      headers: getCorsHeaders(origin || undefined),
     });
   }
   return null;
@@ -216,7 +232,7 @@ export async function apiMiddleware(
         { success: false, error: authResult.error },
         { status: authResult.status || 401 }
       );
-      return { success: true, response };
+      return { success: false, response };
     }
     
     return { success: true, user: authResult.user };
@@ -228,8 +244,8 @@ export async function apiMiddleware(
 /**
  * Add CORS headers to response
  */
-export function addCorsHeaders(response: NextResponse): NextResponse {
-  const corsHeaders = getCorsHeaders();
+export function addCorsHeaders(response: NextResponse, origin?: string): NextResponse {
+  const corsHeaders = getCorsHeaders(origin);
   Object.entries(corsHeaders).forEach(([key, value]) => {
     response.headers.set(key, value);
   });

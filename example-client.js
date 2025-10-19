@@ -67,6 +67,11 @@ class AuthAPIClient {
         console.log('Login successful:', response.data.user);
         return response.data;
       } else {
+        // Handle validation errors
+        if (response.details && Array.isArray(response.details)) {
+          const errorMessages = response.details.map(detail => detail.message).join(', ');
+          throw new Error(`${response.error}: ${errorMessages}`);
+        }
         throw new Error(response.error || 'Login failed');
       }
     } catch (error) {
@@ -99,6 +104,11 @@ class AuthAPIClient {
         console.log('Registration successful:', response.data.user);
         return response.data;
       } else {
+        // Handle validation errors
+        if (response.details && Array.isArray(response.details)) {
+          const errorMessages = response.details.map(detail => detail.message).join(', ');
+          throw new Error(`${response.error}: ${errorMessages}`);
+        }
         throw new Error(response.error || 'Registration failed');
       }
     } catch (error) {

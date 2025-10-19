@@ -3,6 +3,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { query } from "@/app/lib/db";
 import { generateApiToken, generateRefreshToken } from "@/app/lib/jwt-service";
+import { addCorsHeaders } from "@/app/lib/api-middleware";
 import type { User } from "@/app/lib/definitions";
 
 // Login schema
@@ -30,18 +31,20 @@ async function getUser(email: string): Promise<User | undefined> {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    const origin = request.headers.get("origin");
     
     // Validate input
     const parsedCredentials = loginSchema.safeParse(body);
     if (!parsedCredentials.success) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { 
           success: false, 
           error: "Invalid input", 
-          details: parsedCredentials.error.flatten().fieldErrors 
+          details: parsedCredentials.error.issues 
         },
         { status: 400 }
       );
+      return addCorsHeaders(response, origin || undefined);
     }
 
     const { email, password } = parsedCredentials.data;
@@ -49,19 +52,21 @@ export async function POST(request: NextRequest) {
     // Get user from database
     const user = await getUser(email);
     if (!user) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { success: false, error: "Invalid email or password" },
         { status: 401 }
       );
+      return addCorsHeaders(response, origin || undefined);
     }
 
     // Verify password
     const passwordMatch = await bcrypt.compare(password, user.password);
     if (!passwordMatch) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { success: false, error: "Invalid email or password" },
         { status: 401 }
       );
+      return addCorsHeaders(response, origin || undefined);
     }
 
     // Generate tokens
@@ -84,7 +89,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Return success response
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       data: {
         user: {
@@ -101,12 +106,14 @@ export async function POST(request: NextRequest) {
         },
       },
     });
+    return addCorsHeaders(response, origin || undefined);
 
   } catch (error) {
     console.error("Login error:", error);
-    return NextResponse.json(
+    const response = NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }
     );
+    return addCorsHeaders(response, request.headers.get("origin") || undefined);
   }
 }

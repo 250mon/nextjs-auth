@@ -33,11 +33,5 @@ export type User = {
   created_at: Date;
   updated_at: Date;
   settings?: UserSettings;
-};
-
-// Inventory Management System
-export type UsersTable = {
-  user_id: number;
-  user_name: string;
-  user_password: string;
+  teams?: Team[];
 };

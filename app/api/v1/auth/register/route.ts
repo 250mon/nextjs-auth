@@ -3,6 +3,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { query } from "@/app/lib/db";
 import { generateApiToken, generateRefreshToken } from "@/app/lib/jwt-service";
+import { addCorsHeaders } from "@/app/lib/api-middleware";
 
 // Register schema
 const registerSchema = z
@@ -32,18 +33,20 @@ const registerSchema = z
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    const origin = request.headers.get("origin");
     
     // Validate input
     const parsedCredentials = registerSchema.safeParse(body);
     if (!parsedCredentials.success) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { 
           success: false, 
           error: "Invalid input", 
-          details: parsedCredentials.error.flatten().fieldErrors 
+          details: parsedCredentials.error.issues 
         },
         { status: 400 }
       );
+      return addCorsHeaders(response, origin || undefined);
     }
 
     const { email, password, name } = parsedCredentials.data;
@@ -51,10 +54,11 @@ export async function POST(request: NextRequest) {
     // Check if user already exists
     const existingUser = await query("SELECT id FROM users WHERE email = $1", [email]);
     if (existingUser.rows.length > 0) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { success: false, error: "User with this email already exists" },
         { status: 409 }
       );
+      return addCorsHeaders(response, origin || undefined);
     }
 
     // Hash password
@@ -114,7 +118,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Return success response
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       data: {
         user: {
@@ -131,12 +135,14 @@ export async function POST(request: NextRequest) {
         },
       },
     }, { status: 201 });
+    return addCorsHeaders(response, origin || undefined);
 
   } catch (error) {
     console.error("Registration error:", error);
-    return NextResponse.json(
+    const response = NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }
     );
+    return addCorsHeaders(response, request.headers.get("origin") || undefined);
   }
 }

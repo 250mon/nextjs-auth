@@ -319,9 +319,24 @@ All error responses follow this format:
 {
   "success": false,
   "error": "Error message",
-  "details": {} // Optional: field-specific errors
+  "details": [
+    {
+      "origin": "string",
+      "code": "invalid_format",
+      "format": "email",
+      "path": ["email"],
+      "message": "Invalid email address"
+    }
+  ]
 }
 ```
+
+**Error Details Structure:**
+- `origin`: The type of validation that failed
+- `code`: Specific error code (e.g., "invalid_format", "too_small", "required")
+- `path`: Array showing the field path where the error occurred
+- `message`: Human-readable error message
+- Additional fields may be present depending on the error type (e.g., `minimum`, `format`, `pattern`)
 
 ### Common HTTP Status Codes
 

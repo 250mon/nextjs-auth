@@ -1,25 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyApiToken } from "@/app/lib/jwt-service";
 import { query } from "@/app/lib/db";
+import { addCorsHeaders } from "@/app/lib/api-middleware";
 
 export async function GET(request: NextRequest) {
   try {
+    const origin = request.headers.get("origin");
     const authHeader = request.headers.get("authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { success: false, error: "Authorization header required" },
         { status: 401 }
       );
+      return addCorsHeaders(response, origin || undefined);
     }
 
     const token = authHeader.substring(7);
     const payload = await verifyApiToken(token);
     
     if (!payload) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { success: false, error: "Invalid or expired token" },
         { status: 401 }
       );
+      return addCorsHeaders(response, origin || undefined);
+    }
+
+    // Ensure token has expiration time
+    if (!payload.exp) {
+      const response = NextResponse.json(
+        { success: false, error: "Token missing expiration time" },
+        { status: 401 }
+      );
+      return addCorsHeaders(response, origin || undefined);
     }
 
     // Get fresh user data from database
@@ -29,23 +42,25 @@ export async function GET(request: NextRequest) {
     );
 
     if (userResult.rows.length === 0) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { success: false, error: "User not found" },
         { status: 404 }
       );
+      return addCorsHeaders(response, origin || undefined);
     }
 
     const user = userResult.rows[0];
 
     if (!user.active) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { success: false, error: "User account is inactive" },
         { status: 403 }
       );
+      return addCorsHeaders(response, origin || undefined);
     }
 
     // Return user data
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       data: {
         user: {
@@ -61,12 +76,14 @@ export async function GET(request: NextRequest) {
         },
       },
     });
+    return addCorsHeaders(response, origin || undefined);
 
   } catch (error) {
     console.error("Token verification error:", error);
-    return NextResponse.json(
+    const response = NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }
     );
+    return addCorsHeaders(response, request.headers.get("origin") || undefined);
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { query } from "@/app/lib/db";
 import { verifyApiToken, verifyRefreshToken } from "@/app/lib/jwt-service";
+import { addCorsHeaders } from "@/app/lib/api-middleware";
 
 // Logout schema
 const logoutSchema = z.object({
@@ -11,18 +12,20 @@ const logoutSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    const origin = request.headers.get("origin");
     
     // Validate input
     const parsedData = logoutSchema.safeParse(body);
     if (!parsedData.success) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { 
           success: false, 
           error: "Invalid input", 
-          details: parsedData.error.flatten().fieldErrors 
+          details: parsedData.error.issues 
         },
         { status: 400 }
       );
+      return addCorsHeaders(response, origin || undefined);
     }
 
     const { refreshToken } = parsedData.data;
@@ -30,10 +33,11 @@ export async function POST(request: NextRequest) {
     // Verify refresh token to get user ID
     const payload = await verifyRefreshToken(refreshToken);
     if (!payload) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { success: false, error: "Invalid refresh token" },
         { status: 401 }
       );
+      return addCorsHeaders(response, origin || undefined);
     }
 
     // Remove refresh token from database
@@ -43,39 +47,44 @@ export async function POST(request: NextRequest) {
     );
 
     // Return success response
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: "Successfully logged out",
     });
+    return addCorsHeaders(response, origin || undefined);
 
   } catch (error) {
     console.error("Logout error:", error);
-    return NextResponse.json(
+    const response = NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }
     );
+    return addCorsHeaders(response, request.headers.get("origin") || undefined);
   }
 }
 
 // Also support logout with Authorization header
 export async function DELETE(request: NextRequest) {
   try {
+    const origin = request.headers.get("origin");
     const authHeader = request.headers.get("authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { success: false, error: "Authorization header required" },
         { status: 401 }
       );
+      return addCorsHeaders(response, origin || undefined);
     }
 
     const token = authHeader.substring(7);
     const payload = await verifyApiToken(token);
     
     if (!payload) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { success: false, error: "Invalid token" },
         { status: 401 }
       );
+      return addCorsHeaders(response, origin || undefined);
     }
 
     // Remove all refresh tokens for this user
@@ -84,16 +93,18 @@ export async function DELETE(request: NextRequest) {
       [payload.id]
     );
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: "Successfully logged out",
     });
+    return addCorsHeaders(response, origin || undefined);
 
   } catch (error) {
     console.error("Logout error:", error);
-    return NextResponse.json(
+    const response = NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }
     );
+    return addCorsHeaders(response, request.headers.get("origin") || undefined);
   }
 }

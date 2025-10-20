@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { adaptZodError } from "@/app/lib/zod-error-adaptor";
 import bcrypt from "bcryptjs";
 import { query } from "@/app/lib/db";
 import { generateApiToken, generateRefreshToken } from "@/app/lib/jwt-service";
@@ -36,11 +37,15 @@ export async function POST(request: NextRequest) {
     // Validate input
     const parsedCredentials = loginSchema.safeParse(body);
     if (!parsedCredentials.success) {
+      const adapted = adaptZodError(parsedCredentials.error);
       const response = NextResponse.json(
         { 
           success: false, 
           error: "Invalid input", 
-          details: parsedCredentials.error.issues 
+          details: {
+            formErrors: adapted.formErrors,
+            fieldErrors: adapted.fieldErrorsAll,
+          }
         },
         { status: 400 }
       );

@@ -7,9 +7,9 @@ import { pool, query } from "@/app/lib/db";
 async function resetDatabase() {
   console.log("Starting database reset...");
   try {
+    await query('DROP TABLE IF EXISTS user_teams');
     await query('DROP TABLE IF EXISTS users');
     await query('DROP TABLE IF EXISTS teams');
-    await query('DROP TABLE IF EXISTS user_teams');
     console.log("Dropped users table");
     console.log("Database reset completed");
   } catch (error) {

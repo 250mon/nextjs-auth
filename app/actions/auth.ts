@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { adaptZodError } from "@/app/lib/zod-error-adaptor";
 import bcrypt from "bcryptjs";
 import { query } from "@/app/lib/db";
 import { signIn, signOut } from "@/auth.config";
@@ -87,8 +88,14 @@ export async function signUp(state: FormState, formData: FormData) {
 
     // If any form fields are invalid, return early
     if (!parsedCredentials.success) {
+      const adapted = adaptZodError(parsedCredentials.error);
       return {
-        errors: parsedCredentials.error.flatten().fieldErrors,
+        errors: {
+          name: adapted.fieldErrors["name"] ? [adapted.fieldErrors["name"]] : undefined,
+          email: adapted.fieldErrors["email"] ? [adapted.fieldErrors["email"]] : undefined,
+          password: adapted.fieldErrors["password"] ? [adapted.fieldErrors["password"]] : undefined,
+          confirm_password: adapted.fieldErrors["confirm_password"] ? [adapted.fieldErrors["confirm_password"]] : undefined,
+        },
       };
     }
 
@@ -109,8 +116,8 @@ export async function signUp(state: FormState, formData: FormData) {
 
       // Insert user
       const userResult = await query(
-        `INSERT INTO users (name, email, password, slug, isadmin, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+        `INSERT INTO users (name, email, password, slug, isadmin, active, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
          RETURNING id`,
         [
           parsedCredentials.data.name,
@@ -118,6 +125,7 @@ export async function signUp(state: FormState, formData: FormData) {
           hashedPassword,
           slug,
           false,
+          true,
         ],
       );
 

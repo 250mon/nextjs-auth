@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { adaptZodError } from "@/app/lib/zod-error-adaptor";
 import { query } from "@/app/lib/db";
 import { verifyRefreshToken, generateApiToken } from "@/app/lib/jwt-service";
 import { addCorsHeaders } from "@/app/lib/api-middleware";
@@ -17,11 +18,15 @@ export async function POST(request: NextRequest) {
     // Validate input
     const parsedData = refreshSchema.safeParse(body);
     if (!parsedData.success) {
+      const adapted = adaptZodError(parsedData.error);
       const response = NextResponse.json(
         { 
           success: false, 
           error: "Invalid input", 
-          details: parsedData.error.issues
+          details: {
+            formErrors: adapted.formErrors,
+            fieldErrors: adapted.fieldErrorsAll,
+          }
         },
         { status: 400 }
       );

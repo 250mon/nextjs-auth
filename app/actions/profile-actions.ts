@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { adaptZodError } from "@/app/lib/zod-error-adaptor";
 import bcrypt from "bcryptjs";
 import { query } from "@/app/lib/db";
 import { getCurrentUser } from "@/app/lib/dal";
@@ -80,8 +81,13 @@ export async function updateProfile(formData: FormData) {
     });
 
     if (!validatedFields.success) {
+      const adapted = adaptZodError(validatedFields.error);
       return {
-        errors: validatedFields.error.flatten().fieldErrors,
+        errors: {
+          name: adapted.fieldErrors["name"] ? [adapted.fieldErrors["name"]] : undefined,
+          isadmin: adapted.fieldErrors["isadmin"] ? [adapted.fieldErrors["isadmin"]] : undefined,
+          general: adapted.formErrors,
+        },
         message: 'Missing Fields. Failed to update profile.',
       };
     }
@@ -135,8 +141,14 @@ export async function changePassword(
     });
 
     if (!validatedFields.success) {
+      const adapted = adaptZodError(validatedFields.error);
       return {
-        errors: validatedFields.error.flatten().fieldErrors,
+        errors: {
+          currentPassword: adapted.fieldErrors["currentPassword"] ? [adapted.fieldErrors["currentPassword"]] : undefined,
+          newPassword: adapted.fieldErrors["newPassword"] ? [adapted.fieldErrors["newPassword"]] : undefined,
+          confirmPassword: adapted.fieldErrors["confirmPassword"] ? [adapted.fieldErrors["confirmPassword"]] : undefined,
+          general: adapted.formErrors,
+        },
         message: 'Missing Fields. Failed to change password.',
       };
     }

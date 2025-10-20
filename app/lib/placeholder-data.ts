@@ -8,7 +8,6 @@ type PlaceholderUser = {
   email: string;
   password: string;
   isadmin: boolean;
-  settings?: UserSettings;
 };
 
 const users: PlaceholderUser[] = [
@@ -18,12 +17,6 @@ const users: PlaceholderUser[] = [
     email: 'user@nextmail.com',
     password: '123456',
     isadmin: false,
-    settings: {
-      hideInactiveItems: true,
-      hideInactiveSKUs: false,
-      itemsPerPage: 12,
-      language: 'en'
-    }
   },
   {
     id: '410544b2-4001-4271-9855-fec4b6a6442b',
@@ -31,12 +24,6 @@ const users: PlaceholderUser[] = [
     email: 'admin@nextmail.com',
     password: '123456',
     isadmin: true,
-    settings: {
-      hideInactiveItems: false,
-      hideInactiveSKUs: true,
-      itemsPerPage: 24,
-      language: 'en'
-    }
   },
 ];
 

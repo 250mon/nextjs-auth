@@ -1,6 +1,7 @@
 'use server';
 
 import { z } from 'zod';
+import { adaptZodError } from '@/app/lib/zod-error-adaptor';
 import { query } from '@/app/lib/db';
 import { getCurrentUser } from '@/app/lib/dal';
 import { revalidatePath } from 'next/cache';
@@ -256,8 +257,12 @@ export async function createTeamAction(prevState: TeamState, formData: FormData)
   }).safeParse({ name, description });
 
   if (!validatedFields.success) {
+    const adapted = adaptZodError(validatedFields.error);
     return {
-      errors: validatedFields.error.flatten().fieldErrors,
+      errors: {
+        name: adapted.fieldErrors["name"] ? [adapted.fieldErrors["name"]] : undefined,
+        description: adapted.fieldErrors["description"] ? [adapted.fieldErrors["description"]] : undefined,
+      },
       message: 'Missing Fields. Failed to create team.',
     };
   }
@@ -288,8 +293,12 @@ export async function updateTeamAction(id: number, prevState: TeamState, formDat
   }).safeParse({ name, description });
 
   if (!validatedFields.success) {
+    const adapted = adaptZodError(validatedFields.error);
     return {
-      errors: validatedFields.error.flatten().fieldErrors,
+      errors: {
+        name: adapted.fieldErrors["name"] ? [adapted.fieldErrors["name"]] : undefined,
+        description: adapted.fieldErrors["description"] ? [adapted.fieldErrors["description"]] : undefined,
+      },
       message: 'Missing Fields. Failed to update team.',
     };
   }

@@ -1,6 +1,7 @@
 'use server';
 
 import { z } from 'zod';
+import { adaptZodError } from '@/app/lib/zod-error-adaptor';
 import { query } from '@/app/lib/db';
 import { getCurrentUser } from '@/app/lib/dal';
 import { revalidatePath } from 'next/cache';
@@ -201,8 +202,16 @@ export async function createUser(prevState: UserState, formData: FormData) {
   });
 
   if (!validatedFields.success) {
+    const adapted = adaptZodError(validatedFields.error);
     return {
-      errors: validatedFields.error.flatten().fieldErrors,
+      errors: {
+        id: adapted.fieldErrors["id"] ? [adapted.fieldErrors["id"]] : undefined,
+        name: adapted.fieldErrors["name"] ? [adapted.fieldErrors["name"]] : undefined,
+        email: adapted.fieldErrors["email"] ? [adapted.fieldErrors["email"]] : undefined,
+        password: adapted.fieldErrors["password"] ? [adapted.fieldErrors["password"]] : undefined,
+        isadmin: adapted.fieldErrors["isadmin"] ? [adapted.fieldErrors["isadmin"]] : undefined,
+        slug: adapted.fieldErrors["slug"] ? [adapted.fieldErrors["slug"]] : undefined,
+      },
       message: 'Missing Fields. Failed to create user.',
     };
   }
@@ -278,8 +287,15 @@ export async function updateUser(id: string, prevState: UserState, formData: For
   });
 
   if (!validatedFields.success) {
+    const adapted = adaptZodError(validatedFields.error);
     return {
-      errors: validatedFields.error.flatten().fieldErrors,
+      errors: {
+        id: adapted.fieldErrors["id"] ? [adapted.fieldErrors["id"]] : undefined,
+        name: adapted.fieldErrors["name"] ? [adapted.fieldErrors["name"]] : undefined,
+        email: adapted.fieldErrors["email"] ? [adapted.fieldErrors["email"]] : undefined,
+        isadmin: adapted.fieldErrors["isadmin"] ? [adapted.fieldErrors["isadmin"]] : undefined,
+        active: adapted.fieldErrors["active"] ? [adapted.fieldErrors["active"]] : undefined,
+      },
       message: 'Missing Fields. Failed to update user.',
     };
   }
@@ -352,8 +368,12 @@ export async function changeUserPassword(id: string, prevState: UserState, formD
   });
 
   if (!validatedFields.success) {
+    const adapted = adaptZodError(validatedFields.error);
     return {
-      errors: validatedFields.error.flatten().fieldErrors,
+      errors: {
+        id: adapted.fieldErrors["id"] ? [adapted.fieldErrors["id"]] : undefined,
+        newPassword: adapted.fieldErrors["newPassword"] ? [adapted.fieldErrors["newPassword"]] : undefined,
+      },
       message: 'Invalid password.',
     };
   }

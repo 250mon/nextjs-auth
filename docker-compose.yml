@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  app-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nextjs-auth-app-dev
+    restart: unless-stopped
+    profiles:
+      - dev
+    ports:
+      - "${APP_PORT:-13203}:3000"
+    # Loads all variables from .env.development into the container
+    env_file:
+      - .env.development
+    environment:
+      # Node environment (defaults to development if not set)
+      NODE_ENV: ${NODE_ENV:-development}
+      
+      POSTGRES_URL: ${POSTGRES_URL}
+
+  app-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nextjs-auth-app
+    restart: unless-stopped
+    profiles:
+      - prod
+    ports:
+      - "${APP_PORT:-13203}:3000"
+    # Loads all variables from .env.production into the container
+    env_file:
+      - .env.production
+    environment:
+      # Node environment (defaults to production if not set)
+      NODE_ENV: ${NODE_ENV:-production}
+      
+      POSTGRES_URL: ${POSTGRES_URL}
+

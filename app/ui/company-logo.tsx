@@ -13,7 +13,7 @@ export default function CompanyLogo() {
         height={48} 
         className="mr-3" 
       />
-      <p className="text-[44px]">Danaul Authentication</p>
+      <p className="text-[24px]">Danaul Authentication</p>
     </div>
   );
 }

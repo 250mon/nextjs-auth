@@ -13,8 +13,8 @@ export default function EditUserForm({ user }: { user: User }) {
   const updateUserWithId = updateUser.bind(null, user.id);
   const changePasswordWithId = changeUserPassword.bind(null, user.id);
   
-  const [updateState, updateFormAction] = useActionState(updateUserWithId, initialState);
-  const [passwordState, passwordFormAction] = useActionState(changePasswordWithId, initialState);
+  const [updateState, updateFormAction] = useActionState<UserState, FormData>(updateUserWithId, initialState);
+  const [passwordState, passwordFormAction] = useActionState<UserState, FormData>(changePasswordWithId, initialState);
   
   const [teams, setTeams] = useState<Team[]>([]);
   const [selectedTeams, setSelectedTeams] = useState<number[]>(user.teams?.map(t => t.id) || []);

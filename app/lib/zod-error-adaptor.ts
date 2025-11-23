@@ -15,10 +15,12 @@ export type ZodErrorAdapterOut = {
  * - Uses z.treeifyError() to preserve & traverse nested structure
  * - Falls back to error.issues for full dot-path mapping
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function adaptZodError(error: z.ZodError<any>): ZodErrorAdapterOut {
   // 1) Try the shallow, official v4 helper (great for 1-level forms)
   //    Docs: https://zod.dev/error-formatting
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const flat = (z as any).flattenError?.(error) as
       | { errors: string[]; properties?: Record<string, string[]> }
       | undefined;
@@ -42,10 +44,13 @@ export function adaptZodError(error: z.ZodError<any>): ZodErrorAdapterOut {
   // 2) Use treeify for nested schemas (objects/arrays)
   //    Docs: https://zod.dev/v4/changelog  (flatten()/format() deprecated → treeifyError)
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tree = (z as any).treeifyError?.(error) as
       | {
           errors?: string[];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           properties?: Record<string, any>;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           items?: Record<string, any> | any[];
         }
       | undefined;
@@ -99,6 +104,7 @@ function firsts(all: Record<string, string[]>): Record<string, string> {
  * Accumulates errors at leaf nodes into dot-notation paths.
  */
 function walkTree(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   node: any,
   prefix: string,
   sink: Record<string, string[]>
@@ -111,6 +117,7 @@ function walkTree(
 
   // object properties: { properties: { key: subtree } }
   if (node?.properties && typeof node.properties === "object") {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const [key, child] of Object.entries<any>(node.properties)) {
       const next = prefix ? `${prefix}.${key}` : key;
       walkTree(child, next, sink);
@@ -125,6 +132,7 @@ function walkTree(
         walkTree(child, `${prefix}[${index}]`, sink)
       );
     } else if (typeof items === "object") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const [k, child] of Object.entries<any>(items)) {
         const idx = /^\d+$/.test(k) ? Number(k) : k;
         const next =

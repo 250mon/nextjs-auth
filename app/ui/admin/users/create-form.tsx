@@ -10,7 +10,7 @@ import { Team } from '@/app/lib/definitions';
 
 export default function CreateUserForm() {
   const initialState: UserState = { message: '', errors: {} };
-  const [state, formAction] = useActionState(createUser, initialState);
+  const [state, formAction] = useActionState<UserState, FormData>(createUser, initialState);
   const [teams, setTeams] = useState<Team[]>([]);
   const [selectedTeams, setSelectedTeams] = useState<number[]>([]);
 

@@ -22,11 +22,24 @@ Authorization: Bearer <access_token>
 - **Headers**: Rate limit information is included in response headers
   - `X-RateLimit-Limit`: Maximum requests allowed
   - `X-RateLimit-Remaining`: Remaining requests in current window
-  - `X-RateLimit-Reset`: Time when the rate limit resets
+  - `X-RateLimit-Reset`: Time when the rate limit resets (ISO 8601 format)
+  - `Retry-After`: Seconds until the rate limit resets (included when rate limit is exceeded)
 
 ## CORS
 
-The API supports CORS. Configure allowed origins using the `ALLOWED_ORIGINS` environment variable.
+The API supports CORS. Configure allowed origins using the `ALLOWED_ORIGINS` environment variable (comma-separated list).
+
+**CORS Headers:**
+- `Access-Control-Allow-Origin`: Allowed origin (or `*` if not configured)
+- `Access-Control-Allow-Methods`: `GET, POST, PUT, DELETE, OPTIONS, PATCH`
+- `Access-Control-Allow-Headers`: `Content-Type, Authorization, X-Requested-With, Accept, Origin`
+- `Access-Control-Allow-Credentials`: `true`
+- `Access-Control-Max-Age`: `86400` (24 hours)
+- `Access-Control-Expose-Headers`: Rate limit headers are exposed
+
+**Default Origins** (if `ALLOWED_ORIGINS` is not set):
+- `http://localhost:3000`
+- `http://localhost:3001`
 
 ## Endpoints
 
@@ -43,6 +56,10 @@ Authenticate a user and receive access and refresh tokens.
   "password": "password123"
 }
 ```
+
+**Validation Rules:**
+- `email`: Required, valid email format
+- `password`: Required, 6-32 characters
 
 **Response:**
 ```json
@@ -79,6 +96,12 @@ Register a new user account.
 }
 ```
 
+**Validation Rules:**
+- `name`: Required, 3-100 characters
+- `email`: Required, valid email format
+- `password`: Required, 6-32 characters
+- `confirm_password`: Required, must match `password`
+
 **Response:**
 ```json
 {
@@ -99,6 +122,8 @@ Register a new user account.
   }
 }
 ```
+
+**Status Code:** `201 Created`
 
 #### POST /auth/refresh
 
@@ -250,6 +275,10 @@ Authorization: Bearer <access_token>
 }
 ```
 
+**Validation Rules:**
+- `name`: Required
+- `email`: Required, valid email format, must be unique
+
 **Response:**
 ```json
 {
@@ -319,33 +348,59 @@ All error responses follow this format:
 {
   "success": false,
   "error": "Error message",
-  "details": [
-    {
-      "origin": "string",
-      "code": "invalid_format",
-      "format": "email",
-      "path": ["email"],
-      "message": "Invalid email address"
+  "details": {
+    "formErrors": ["Top-level form errors (e.g., cross-field validation)"],
+    "fieldErrors": {
+      "fieldName": "First error message for this field"
+    },
+    "fieldErrorsAll": {
+      "fieldName": ["All error messages for this field"]
     }
-  ]
+  }
 }
 ```
 
 **Error Details Structure:**
-- `origin`: The type of validation that failed
-- `code`: Specific error code (e.g., "invalid_format", "too_small", "required")
-- `path`: Array showing the field path where the error occurred
-- `message`: Human-readable error message
-- Additional fields may be present depending on the error type (e.g., `minimum`, `format`, `pattern`)
+- `formErrors`: Array of top-level form errors (e.g., cross-field validation like password confirmation)
+- `fieldErrors`: Object mapping field names to their first error message (useful for inline UI validation)
+- `fieldErrorsAll`: Object mapping field names to arrays of all error messages for that field
+
+**Example Error Response:**
+```json
+{
+  "success": false,
+  "error": "Invalid input",
+  "details": {
+    "formErrors": [],
+    "fieldErrors": {
+      "email": "Invalid email",
+      "password": "Password must be more than 6 characters"
+    },
+    "fieldErrorsAll": {
+      "email": ["Invalid email"],
+      "password": ["Password must be more than 6 characters"]
+    }
+  }
+}
+```
+
+**Rate Limit Error Response:**
+```json
+{
+  "success": false,
+  "error": "Rate limit exceeded",
+  "retryAfter": 450
+}
+```
 
 ### Common HTTP Status Codes
 
 - `200`: Success
-- `201`: Created
+- `201`: Created (used for successful registration)
 - `400`: Bad Request (validation errors)
 - `401`: Unauthorized (invalid/missing token)
-- `403`: Forbidden (insufficient permissions)
-- `404`: Not Found
+- `403`: Forbidden (insufficient permissions, e.g., admin access required)
+- `404`: Not Found (resource not found)
 - `409`: Conflict (e.g., email already exists)
 - `429`: Too Many Requests (rate limit exceeded)
 - `500`: Internal Server Error
@@ -370,19 +425,32 @@ POSTGRES_URL=your-postgres-connection-string
 
 ### 2. Database Setup
 
-Run the setup endpoint to create necessary tables:
+Run the setup endpoint to create necessary tables and indexes for the API:
 
 ```bash
 curl -X POST https://your-domain.com/api/v1/auth/setup
 ```
 
+**Response:**
+```json
+{
+  "success": true,
+  "message": "API setup completed successfully"
+}
+```
+
+This endpoint creates:
+- `api_refresh_tokens` table (if it doesn't exist)
+- Indexes for faster token lookups
+- Cleans up expired tokens
+
 ### 3. Install Dependencies
 
-The API requires these additional dependencies:
+The API requires these additional dependencies (if not already installed):
 
 ```bash
-npm install jsonwebtoken
-npm install @types/jsonwebtoken --save-dev
+npm install jsonwebtoken bcryptjs zod
+npm install @types/jsonwebtoken @types/bcryptjs --save-dev
 ```
 
 ## Usage Examples
@@ -559,13 +627,16 @@ user_data = response.json()
 
 ## Security Considerations
 
-1. **JWT Secrets**: Use strong, unique secrets for JWT signing
+1. **JWT Secrets**: Use strong, unique secrets for JWT signing (minimum 32 characters recommended)
 2. **HTTPS**: Always use HTTPS in production
-3. **Token Storage**: Store tokens securely (httpOnly cookies recommended for web apps)
-4. **Rate Limiting**: The API includes rate limiting to prevent abuse
-5. **CORS**: Configure CORS properly for your domains
-6. **Input Validation**: All inputs are validated using Zod schemas
-7. **Password Hashing**: Passwords are hashed using bcrypt
+3. **Token Storage**: Store tokens securely (httpOnly cookies recommended for web apps, secure storage for mobile apps)
+4. **Rate Limiting**: The API includes rate limiting to prevent abuse (100 requests per 15 minutes per IP)
+5. **CORS**: Configure CORS properly for your domains using `ALLOWED_ORIGINS` environment variable
+6. **Input Validation**: All inputs are validated using Zod schemas with proper error messages
+7. **Password Hashing**: Passwords are hashed using bcrypt with salt rounds of 10
+8. **Token Expiration**: Access tokens expire after 1 hour, refresh tokens expire after 7 days
+9. **Active Users Only**: Only active users can authenticate (inactive accounts are rejected)
+10. **Token Revocation**: Refresh tokens can be revoked on logout
 
 ## Support
 

@@ -41,7 +41,7 @@ async function seedUsers() {
       users.map(async (user) => {
         const hashedPassword = await bcrypt.hash(user.password, 10);
         const slug = user.name.toLowerCase().replace(/\s+/g, '-');
-        const settings = user.settings ? JSON.stringify(user.settings) : null;
+        const settings = null; // Placeholder users don't have settings
         const createdAt = new Date().toISOString();
         const updatedAt = createdAt;
         return query(

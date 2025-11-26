@@ -1,15 +1,13 @@
 "use server";
 
 import bcrypt from "bcryptjs";
-import { users, teams, userTeams } from "@/app/lib/placeholder-data";
+import { users } from "@/app/lib/placeholder-data";
 import { pool, query } from "@/app/lib/db";
 
 async function resetDatabase() {
   console.log("Starting database reset...");
   try {
-    await query('DROP TABLE IF EXISTS user_teams');
     await query('DROP TABLE IF EXISTS users');
-    await query('DROP TABLE IF EXISTS teams');
     console.log("Dropped users table");
     console.log("Database reset completed");
   } catch (error) {
@@ -60,75 +58,6 @@ async function seedUsers() {
   }
 }
 
-async function seedTeams() {
-  console.log("Starting teams seeding...");
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS teams (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(255) NOT NULL UNIQUE,
-        description TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
-    const insertedTeams = await Promise.all(
-      teams.map(async (team) => {
-        const createdAt = new Date().toISOString();
-        const updatedAt = createdAt;
-        return query(
-          `INSERT INTO teams (id, name, description, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5)
-           ON CONFLICT (id) DO NOTHING`,
-          [team.id, team.name, team.description, createdAt, updatedAt]
-        );
-      })
-    );
-    
-    // Update the sequence to start after the highest inserted ID
-    await query('SELECT setval(\'teams_id_seq\', (SELECT MAX(id) FROM teams))');
-    
-    console.log("Teams seeding completed");
-    return insertedTeams;
-  } catch (error) {
-    console.error("Error seeding teams:", error);
-    throw error;
-  }
-}
-
-async function seedUserTeams() {
-  console.log("Starting user-teams seeding...");
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS user_teams (
-        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-        team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE,
-        role VARCHAR(100),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (user_id, team_id)
-      );
-    `);
-
-    const insertedUserTeams = await Promise.all(
-      userTeams.map(async (userTeam) => {
-        const createdAt = new Date().toISOString();
-        return query(
-          `INSERT INTO user_teams (user_id, team_id, role, created_at)
-           VALUES ($1, $2, $3, $4)
-           ON CONFLICT (user_id, team_id) DO NOTHING`,
-          [userTeam.user_id, userTeam.team_id, userTeam.role, createdAt]
-        );
-      })
-    );
-    
-    console.log("User-teams seeding completed");
-    return insertedUserTeams;
-  } catch (error) {
-    console.error("Error seeding user-teams:", error);
-    throw error;
-  }
-}
 
 
 export async function GET() {
@@ -145,8 +74,6 @@ export async function GET() {
     
     // Then seed the data in the correct order
     await seedUsers();
-    await seedTeams();
-    await seedUserTeams();
     
     console.log("All seeding operations completed, committing transaction...");
     await client.query('COMMIT');

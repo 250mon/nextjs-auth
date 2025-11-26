@@ -3,36 +3,12 @@
 import Link from 'next/link';
 import { Button } from '@/app/ui/button';
 import { createUser, UserState } from '@/app/actions/admin-actions';
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState } from 'react';
 import { UserIcon, EnvelopeIcon, KeyIcon, IdentificationIcon } from '@heroicons/react/24/outline';
-import { fetchAllTeams } from '@/app/actions/team-actions';
-import { Team } from '@/app/lib/definitions';
 
 export default function CreateUserForm() {
   const initialState: UserState = { message: '', errors: {} };
   const [state, formAction] = useActionState<UserState, FormData>(createUser, initialState);
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [selectedTeams, setSelectedTeams] = useState<number[]>([]);
-
-  useEffect(() => {
-    const loadTeams = async () => {
-      try {
-        const allTeams = await fetchAllTeams();
-        setTeams(allTeams);
-      } catch (error) {
-        console.error('Failed to load teams:', error);
-      }
-    };
-    loadTeams();
-  }, []);
-
-  const handleTeamChange = (teamId: number, checked: boolean) => {
-    if (checked) {
-      setSelectedTeams(prev => [...prev, teamId]);
-    } else {
-      setSelectedTeams(prev => prev.filter(id => id !== teamId));
-    }
-  };
 
   return (
     <form action={formAction}>
@@ -154,42 +130,6 @@ export default function CreateUserForm() {
                 ))}
             </div>
           </div>
-        </div>
-
-        {/* Teams */}
-        <div className="mb-4">
-          <label className="mb-2 block text-sm font-medium">
-            Teams (Optional)
-          </label>
-          <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 rounded-md p-3">
-            {teams.length > 0 ? (
-              teams.map((team) => (
-                <div key={team.id} className="flex items-center">
-                  <input
-                    id={`team-${team.id}`}
-                    name="teams"
-                    type="checkbox"
-                    value={team.id}
-                    checked={selectedTeams.includes(team.id)}
-                    onChange={(e) => handleTeamChange(team.id, e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 bg-gray-100 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                  />
-                  <label htmlFor={`team-${team.id}`} className="ml-2 text-sm">
-                    <span className="font-medium text-gray-900">{team.name}</span>
-                    {team.description && (
-                      <span className="text-gray-500"> - {team.description}</span>
-                    )}
-                  </label>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-gray-500">No teams available</p>
-            )}
-          </div>
-          {/* Hidden inputs for selected teams */}
-          {selectedTeams.map(teamId => (
-            <input key={teamId} type="hidden" name="selectedTeams" value={teamId} />
-          ))}
         </div>
 
         {/* Admin Status */}

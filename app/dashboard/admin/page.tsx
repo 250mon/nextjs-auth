@@ -4,7 +4,6 @@ import { lusitana } from "@/app/ui/fonts";
 import Link from "next/link";
 import { 
   UserGroupIcon, 
-  BuildingOfficeIcon,
   Cog6ToothIcon, 
   ChartBarIcon,
   DocumentTextIcon 
@@ -25,20 +24,6 @@ export default async function AdminPage() {
       href: "/dashboard/admin/users",
       icon: UserGroupIcon,
       color: "bg-blue-500"
-    },
-    {
-      title: "Team Management",
-      description: "Create and manage teams and access control",
-      href: "/dashboard/admin/teams",
-      icon: BuildingOfficeIcon,
-      color: "bg-indigo-500"
-    },
-    {
-      title: "Team Permissions",
-      description: "Configure team permissions for resources and pages",
-      href: "/dashboard/admin/team-permissions",
-      icon: Cog6ToothIcon,
-      color: "bg-purple-500"
     },
     {
       title: "System Settings",

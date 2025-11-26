@@ -89,10 +89,6 @@ export default async function DeleteUserPage({ params }: { params: Promise<{ id:
               </p>
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-700">Team</p>
-              <p className="text-sm text-gray-900">{userToDelete.teams?.map(t => t.name).join(', ') || 'No teams assigned'}</p>
-            </div>
-            <div>
               <p className="text-sm font-medium text-gray-700">Status</p>
               <p className={`text-sm font-medium ${userToDelete.active ? 'text-green-600' : 'text-red-600'}`}>
                 {userToDelete.active ? 'Active' : 'Inactive'}

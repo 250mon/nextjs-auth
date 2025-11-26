@@ -32,26 +32,6 @@ export default async function EditProfileForm({ user }: EditProfileFormProps) {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('teams')}
-            </label>
-            <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 min-h-[42px] flex flex-wrap gap-1 items-center">
-              {user.teams && user.teams.length > 0 ? (
-                user.teams.map((team) => (
-                  <span
-                    key={team.id}
-                    className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10"
-                  >
-                    {team.name}
-                  </span>
-                ))
-              ) : (
-                <span className="text-sm text-gray-500">No teams assigned</span>
-              )}
-            </div>
-          </div>
-
           { user.isadmin && (
             <div>
               <label htmlFor="isadmin" className="flex items-center space-x-2">

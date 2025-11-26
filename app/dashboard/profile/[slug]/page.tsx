@@ -89,24 +89,6 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
                 </span>
               </div>
             )}
-
-            <div className="flex items-start space-x-4">
-              <span className="w-32 font-semibold">{t('teams')}:</span>
-              <div className="flex flex-wrap gap-1">
-                {profile.teams && profile.teams.length > 0 ? (
-                  profile.teams.map((team) => (
-                    <span
-                      key={team.id}
-                      className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-sm font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10"
-                    >
-                      {team.name}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-gray-700">{t('notAvailable')}</span>
-                )}
-              </div>
-            </div>
           </div>
         </div>
       </main>

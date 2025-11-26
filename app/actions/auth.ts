@@ -131,23 +131,6 @@ export async function signUp(state: FormState, formData: FormData) {
 
       const newUserId = userResult.rows[0].id;
 
-      // Add user to a default team if it exists
-      try {
-        const defaultTeamResult = await query(
-          "SELECT id FROM teams WHERE name = $1",
-          ["DefaultTeam"],
-        );
-        if (defaultTeamResult.rows.length > 0) {
-          await query(
-            "INSERT INTO user_teams (user_id, team_id, role, created_at) VALUES ($1, $2, $3, NOW())",
-            [newUserId, defaultTeamResult.rows[0].id, "member"],
-          );
-        }
-      } catch (teamError) {
-        console.log("Could not add user to default team:", teamError);
-        // Don't fail registration if team assignment fails
-      }
-
       const result = await query("SELECT * FROM users WHERE email = $1", [
         parsedCredentials.data.email,
       ]);

@@ -245,14 +245,7 @@ Authorization: Bearer <access_token>
       "slug": "john-doe-abc123",
       "active": true,
       "createdAt": "2024-01-01T00:00:00.000Z",
-      "updatedAt": "2024-01-01T00:00:00.000Z",
-      "teams": [
-        {
-          "id": 1,
-          "name": "DefaultTeam",
-          "role": "member"
-        }
-      ]
+      "updatedAt": "2024-01-01T00:00:00.000Z"
     }
   }
 }
@@ -325,7 +318,6 @@ Authorization: Bearer <admin_access_token>
         "isadmin": false,
         "slug": "john-doe-abc123",
         "active": true,
-        "teamCount": 1,
         "createdAt": "2024-01-01T00:00:00.000Z",
         "updatedAt": "2024-01-01T00:00:00.000Z"
       }

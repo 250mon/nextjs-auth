@@ -75,23 +75,9 @@ export async function fetchFilteredUsers(
         users.slug,
         users.active,
         users.created_at,
-        users.updated_at,
-        COALESCE(
-          json_agg(
-            json_build_object(
-              'id', teams.id,
-              'name', teams.name,
-              'description', teams.description,
-              'role', user_teams.role
-            )
-          ) FILTER (WHERE teams.id IS NOT NULL),
-          '[]'::json
-        ) as teams
+        users.updated_at
       FROM users
-      LEFT JOIN user_teams ON users.id = user_teams.user_id
-      LEFT JOIN teams ON user_teams.team_id = teams.id
       ${whereClause}
-      GROUP BY users.id, users.name, users.email, users.isadmin, users.slug, users.active, users.created_at, users.updated_at
       ORDER BY users.created_at DESC
       LIMIT $${params.length - 1} OFFSET $${params.length}
     `, params);
@@ -147,23 +133,9 @@ export async function fetchUserById(id: string) {
         users.slug,
         users.active,
         users.created_at,
-        users.updated_at,
-        COALESCE(
-          json_agg(
-            json_build_object(
-              'id', teams.id,
-              'name', teams.name,
-              'description', teams.description,
-              'role', user_teams.role
-            )
-          ) FILTER (WHERE teams.id IS NOT NULL),
-          '[]'::json
-        ) as teams
+        users.updated_at
       FROM users
-      LEFT JOIN user_teams ON users.id = user_teams.user_id
-      LEFT JOIN teams ON user_teams.team_id = teams.id
       WHERE users.id = $1
-      GROUP BY users.id, users.name, users.email, users.isadmin, users.slug, users.active, users.created_at, users.updated_at
     `, [id]);
 
     return result.rows[0] as User;
@@ -218,9 +190,6 @@ export async function createUser(prevState: UserState, formData: FormData) {
 
   const { id, name, email, password, isadmin, slug } = validatedFields.data;
 
-  // Get selected teams
-  const selectedTeams = formData.getAll('selectedTeams').map(id => parseInt(id as string)).filter(id => !isNaN(id));
-
   try {
     // Check if email or slug already exists
     const existingUser = await query(
@@ -238,31 +207,13 @@ export async function createUser(prevState: UserState, formData: FormData) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Start transaction
-    await query('BEGIN');
-
     // Insert user
     await query(`
       INSERT INTO users (id, name, email, password, isadmin, slug, active, created_at, updated_at)
       VALUES ($1, $2, $3, $4, $5, $6, true, NOW(), NOW())
     `, [id, name, email, hashedPassword, isadmin, slug]);
 
-    // Add user to selected teams
-    if (selectedTeams.length > 0) {
-      const teamValues = selectedTeams.map((_, index) => 
-        `($1, $${index + 2}, 'member', NOW())`
-      ).join(', ');
-      
-      await query(`
-        INSERT INTO user_teams (user_id, team_id, role, created_at)
-        VALUES ${teamValues}
-      `, [id, ...selectedTeams]);
-    }
-
-    await query('COMMIT');
-
   } catch (error) {
-    await query('ROLLBACK');
     console.error('Database Error:', error);
     return {
       message: 'Database Error: Failed to create user.',
@@ -302,9 +253,6 @@ export async function updateUser(id: string, prevState: UserState, formData: For
 
   const { name, email, isadmin, active } = validatedFields.data;
 
-  // Get selected teams
-  const selectedTeams = formData.getAll('selectedTeams').map(id => parseInt(id as string)).filter(id => !isNaN(id));
-
   try {
     // Check if email already exists for another user
     const existingUser = await query(
@@ -319,9 +267,6 @@ export async function updateUser(id: string, prevState: UserState, formData: For
       };
     }
 
-    // Start transaction
-    await query('BEGIN');
-
     // Update user basic info
     await query(`
       UPDATE users 
@@ -329,24 +274,7 @@ export async function updateUser(id: string, prevState: UserState, formData: For
       WHERE id = $5
     `, [name, email, isadmin, active, id]);
 
-    // Update user teams - remove all existing and add new ones
-    await query('DELETE FROM user_teams WHERE user_id = $1', [id]);
-    
-    if (selectedTeams.length > 0) {
-      const teamValues = selectedTeams.map((_, index) => 
-        `($1, $${index + 2}, 'member', NOW())`
-      ).join(', ');
-      
-      await query(`
-        INSERT INTO user_teams (user_id, team_id, role, created_at)
-        VALUES ${teamValues}
-      `, [id, ...selectedTeams]);
-    }
-
-    await query('COMMIT');
-
   } catch (error) {
-    await query('ROLLBACK');
     console.error('Database Error:', error);
     return {
       message: 'Database Error: Failed to update user.',
@@ -445,19 +373,13 @@ export async function deleteUser(id: string) {
       return { message: 'Error: Cannot delete the last active admin user.', errors: {} };
     }
 
-    // Start transaction for data integrity
-    await query('BEGIN');
-
-    // Delete user (this will cascade delete user_teams due to foreign key constraint)
+    // Delete user
     await query('DELETE FROM users WHERE id = $1', [id]);
-
-    await query('COMMIT');
     
     revalidatePath('/dashboard/admin/users');
     return { message: `User "${userToDelete.name}" deleted successfully.`, errors: {} };
 
   } catch (error) {
-    await query('ROLLBACK');
     console.error('Database Error:', error);
     
     // Handle specific database constraint errors

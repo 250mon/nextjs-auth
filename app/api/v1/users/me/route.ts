@@ -17,13 +17,10 @@ export async function GET(request: NextRequest) {
   }
   
   try {
-    // Get user data with team information
+    // Get user data
     const userResult = await query(
-      `SELECT u.id, u.name, u.email, u.isadmin, u.slug, u.active, u.created_at, u.updated_at,
-              ut.role as team_role, t.name as team_name, t.id as team_id
+      `SELECT u.id, u.name, u.email, u.isadmin, u.slug, u.active, u.created_at, u.updated_at
        FROM users u
-       LEFT JOIN user_teams ut ON u.id = ut.user_id
-       LEFT JOIN teams t ON ut.team_id = t.id
        WHERE u.id = $1`,
       [middlewareResult.user.id]
     );
@@ -34,13 +31,6 @@ export async function GET(request: NextRequest) {
         { status: 404 }
       );
     }
-    
-    // Group teams
-    const teams = userResult.rows.map(row => ({
-      id: row.team_id,
-      name: row.team_name,
-      role: row.team_role,
-    })).filter(team => team.id !== null);
     
     const user = userResult.rows[0];
     
@@ -56,7 +46,6 @@ export async function GET(request: NextRequest) {
           active: user.active,
           createdAt: user.created_at,
           updatedAt: user.updated_at,
-          teams,
         },
       },
     });

@@ -44,20 +44,6 @@ export default async function UsersTable({
                 </div>
                 <div className="flex w-full items-center justify-between pt-4">
                   <div>
-                    <div className="flex flex-wrap gap-1 mb-2">
-                      {user.teams && user.teams.length > 0 ? (
-                        user.teams.map((team) => (
-                          <span
-                            key={team.id}
-                            className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10"
-                          >
-                            {team.name}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-sm text-gray-500">No teams</span>
-                      )}
-                    </div>
                     <p className="text-sm text-gray-500">
                       Created: {formatDateToLocal(user.created_at.toString())}
                     </p>
@@ -83,9 +69,6 @@ export default async function UsersTable({
                 </th>
                 <th scope="col" className="px-3 py-5 font-medium">
                   Role
-                </th>
-                <th scope="col" className="px-3 py-5 font-medium">
-                  Team
                 </th>
                 <th scope="col" className="px-3 py-5 font-medium">
                   Status
@@ -130,22 +113,6 @@ export default async function UsersTable({
                     }`}>
                       {user.isadmin ? 'Admin' : 'User'}
                     </span>
-                  </td>
-                  <td className="px-3 py-3">
-                    <div className="flex flex-wrap gap-1 max-w-xs">
-                      {user.teams && user.teams.length > 0 ? (
-                        user.teams.map((team) => (
-                          <span
-                            key={team.id}
-                            className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10"
-                          >
-                            {team.name}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-sm text-gray-500">-</span>
-                      )}
-                    </div>
                   </td>
                   <td className="whitespace-nowrap px-3 py-3">
                     <div className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${

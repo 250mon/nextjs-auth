@@ -46,23 +46,6 @@ export const getCurrentUser = cache(async () => {
       return null;
     }
     
-    // Fetch user's teams with roles
-    try {
-      const teamsResult = await query(`
-        SELECT t.id, t.name, t.description, t.created_at, t.updated_at, ut.role
-        FROM teams t
-        INNER JOIN user_teams ut ON t.id = ut.team_id
-        WHERE ut.user_id = $1
-        ORDER BY t.name ASC
-      `, [user.id]);
-      
-      user.teams = teamsResult.rows;
-    } catch (teamsError) {
-      console.log("Failed to fetch user teams:", teamsError);
-      // Don't fail the whole request if teams fail to load
-      user.teams = [];
-    }
-    
     return user;
   } catch (error) {
     console.log("Failed to fetch user:", error);

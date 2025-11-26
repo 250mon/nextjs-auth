@@ -86,23 +86,6 @@ export async function POST(request: NextRequest) {
 
     const newUser = userResult.rows[0];
 
-    // Add user to default team if it exists
-    try {
-      const defaultTeamResult = await query(
-        "SELECT id FROM teams WHERE name = $1",
-        ["DefaultTeam"]
-      );
-      if (defaultTeamResult.rows.length > 0) {
-        await query(
-          "INSERT INTO user_teams (user_id, team_id, role, created_at) VALUES ($1, $2, $3, NOW())",
-          [newUser.id, defaultTeamResult.rows[0].id, "member"]
-        );
-      }
-    } catch (teamError) {
-      console.log("Could not add user to default team:", teamError);
-      // Don't fail registration if team assignment fails
-    }
-
     // Generate tokens
     const accessToken = await generateApiToken({
       id: newUser.id,

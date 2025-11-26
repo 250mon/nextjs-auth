@@ -32,12 +32,9 @@ export async function GET(request: NextRequest) {
     
     // Get users
     const usersQuery = `
-      SELECT u.id, u.name, u.email, u.isadmin, u.slug, u.active, u.created_at, u.updated_at,
-             COUNT(ut.team_id) as team_count
+      SELECT u.id, u.name, u.email, u.isadmin, u.slug, u.active, u.created_at, u.updated_at
       FROM users u
-      LEFT JOIN user_teams ut ON u.id = ut.user_id
       ${whereClause}
-      GROUP BY u.id, u.name, u.email, u.isadmin, u.slug, u.active, u.created_at, u.updated_at
       ORDER BY u.created_at DESC
       LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
     `;
@@ -51,7 +48,6 @@ export async function GET(request: NextRequest) {
       isadmin: user.isadmin,
       slug: user.slug,
       active: user.active,
-      teamCount: parseInt(user.team_count),
       createdAt: user.created_at,
       updatedAt: user.updated_at,
     }));

@@ -45,6 +45,26 @@ export const formatDateToLocal = (
   return formatter.format(date);
 };
 
+// Path utilities for basePath handling
+// These are safe to import in Edge Runtime (middleware) as they don't import database code
+export const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
+
+export function createUrl(path: string, baseUrl: URL): URL {
+  const pathWithBase = basePath ? `${basePath}${path}` : path;
+  return new URL(pathWithBase, baseUrl);
+}
+
+// Helper function to get image source path with basePath support
+// When basePath is set, we need to explicitly include it in image paths
+// because Next.js Image component with unoptimized images doesn't always handle basePath correctly
+export function getImageSrc(path: string): string {
+  // Ensure path starts with /
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  // If basePath is set, prepend it to the path
+  // This is necessary when image optimization is disabled
+  return basePath ? `${basePath}${normalizedPath}` : normalizedPath;
+}
+
 // Environment utilities
 export const env = {
   get isDevelopment() { return process.env.NODE_ENV === 'development'; },

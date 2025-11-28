@@ -1,15 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { handleCors, addCorsHeaders } from "@/app/lib/api-middleware";
-
-// Get basePath from environment variable
-const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
-
-// Helper function to create URL with basePath
-function createUrl(path: string, baseUrl: URL): URL {
-  const pathWithBase = basePath ? `${basePath}${path}` : path;
-  return new URL(pathWithBase, baseUrl);
-}
+import { basePath, createUrl } from "@/app/lib/utils";
 
 // 1. Specify protected and public routes
 const protectedRoutes = ["/dashboard"];
@@ -61,6 +53,7 @@ export const config = {
     // API routes for CORS handling
     "/api/(.*)",
     // Page routes for authentication
-    "/((?!_next/static|_next/image|.*\\.png$).*)"
+    // Exclude static files, Next.js internals, and common image/file types
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|woff|woff2|ttf|eot|css|js)$).*)"
   ],
 };

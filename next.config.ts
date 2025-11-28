@@ -49,6 +49,13 @@ const nextConfig: NextConfig = {
   // Mount the app at the base path (only if BASE_PATH is set)
   ...(BASE_PATH && { basePath: BASE_PATH }),
 
+  // Image configuration
+  // Disable image optimization when basePath is set to avoid issues with image optimization endpoint
+  // Also disable in standalone/Docker builds
+  images: {
+    unoptimized: !!BASE_PATH || process.env.OUTPUT === 'standalone' || process.env.DISABLE_IMAGE_OPTIMIZATION === 'true',
+  },
+
   webpack: (config, { isServer }) => {
     if (!isServer) {
       // Don't resolve 'fs' module on the client to prevent this error on build --> Error: Can't resolve 'fs'

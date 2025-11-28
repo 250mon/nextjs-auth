@@ -4,6 +4,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { query } from "@/app/lib/db";
 import type { User } from "@/app/lib/definitions";
+import { basePath } from "@/app/lib/utils";
 
 // Basic sign-in schema
 const signInSchema = z.object({
@@ -44,6 +45,47 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = token.id as string;
       }
       return session;
+    },
+    redirect({ url, baseUrl }) {
+      // Handle redirects with basePath
+      // If url is relative (starts with /), construct absolute URL with basePath
+      if (url.startsWith('/')) {
+        const baseUrlObj = new URL(baseUrl);
+        // Check if baseUrl already includes basePath
+        const baseUrlHasBasePath = basePath && baseUrlObj.pathname.startsWith(basePath);
+        
+        if (basePath && !baseUrlHasBasePath) {
+          // baseUrl doesn't include basePath, so we need to add it
+          return `${baseUrl}${basePath}${url}`;
+        }
+        // baseUrl already includes basePath or no basePath configured
+        return `${baseUrl}${url}`;
+      }
+      // If url is absolute and same origin, check if it needs basePath
+      try {
+        const urlObj = new URL(url);
+        const baseUrlObj = new URL(baseUrl);
+        if (urlObj.origin === baseUrlObj.origin) {
+          // Same origin - check if basePath needs to be added
+          if (basePath && !urlObj.pathname.startsWith(basePath)) {
+            // URL doesn't have basePath, add it
+            urlObj.pathname = `${basePath}${urlObj.pathname}`;
+            return urlObj.toString();
+          }
+          return url;
+        }
+      } catch {
+        // Invalid URL, fall through to default
+      }
+      // Default to baseUrl with basePath if needed
+      if (basePath) {
+        const baseUrlObj = new URL(baseUrl);
+        if (!baseUrlObj.pathname.startsWith(basePath)) {
+          baseUrlObj.pathname = `${basePath}${baseUrlObj.pathname}`;
+          return baseUrlObj.toString();
+        }
+      }
+      return baseUrl;
     },
   },
   providers: [

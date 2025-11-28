@@ -19,6 +19,10 @@ WORKDIR /app
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
+# Accept build arguments for basePath (needed at build time for next.config.ts)
+ARG NEXT_PUBLIC_BASE_PATH
+ENV NEXT_PUBLIC_BASE_PATH=${NEXT_PUBLIC_BASE_PATH}
+
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -33,6 +37,10 @@ RUN pnpm build
 # Stage 3: Runner
 FROM node:20-alpine AS runner
 WORKDIR /app
+
+# Accept build arguments and set as environment variables for runtime
+ARG NEXT_PUBLIC_BASE_PATH
+ENV NEXT_PUBLIC_BASE_PATH=${NEXT_PUBLIC_BASE_PATH}
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1

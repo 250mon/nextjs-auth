@@ -13,13 +13,14 @@ services:
       - "${APP_PORT:-13203}:3000"
     # Loads all variables from .env.development into the container
     env_file:
-      - .env.development
+      - .env
     environment:
       # Node environment (defaults to development if not set)
       NODE_ENV: ${NODE_ENV:-development}
       NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH:-/auth}
       POSTGRES_URL: ${POSTGRES_URL}
       DATABASE_SSL: ${DATABASE_SSL:-false}
+      DEBUG: ${DEBUG:-postgres:*}
 
   app-prod:
     build:
@@ -35,10 +36,11 @@ services:
       - "${APP_PORT:-13203}:3000"
     # Loads all variables from .env.production into the container
     env_file:
-      - .env.production
+      - .env
     environment:
       # Node environment (defaults to production if not set)
       NODE_ENV: ${NODE_ENV:-production}
       NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH:-/auth}
       POSTGRES_URL: ${POSTGRES_URL}
       DATABASE_SSL: ${DATABASE_SSL:-false}
+      DEBUG: ${DEBUG:-false}

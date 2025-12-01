@@ -79,4 +79,43 @@ export async function query(text: string, params?: unknown[]) {
 }
 
 // Export the pool for transactions
-export { pool }; 
+export { pool };
+
+// Ensure api_refresh_tokens table exists
+// This function is idempotent and can be called safely multiple times
+export async function ensureApiRefreshTokensTable() {
+  try {
+    // Create api_refresh_tokens table if it doesn't exist
+    await query(`
+      CREATE TABLE IF NOT EXISTS api_refresh_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL UNIQUE,
+        token TEXT NOT NULL UNIQUE,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    // Create indexes for faster lookups (IF NOT EXISTS ensures idempotency)
+    await query(`
+      CREATE INDEX IF NOT EXISTS idx_api_refresh_tokens_user_id 
+      ON api_refresh_tokens(user_id)
+    `);
+    
+    await query(`
+      CREATE INDEX IF NOT EXISTS idx_api_refresh_tokens_token 
+      ON api_refresh_tokens(token)
+    `);
+    
+    await query(`
+      CREATE INDEX IF NOT EXISTS idx_api_refresh_tokens_expires_at 
+      ON api_refresh_tokens(expires_at)
+    `);
+  } catch (error) {
+    // Log error but don't throw - we'll let the calling code handle table operations
+    console.error("Error ensuring api_refresh_tokens table exists:", error);
+    // Re-throw to let caller know setup failed
+    throw error;
+  }
+} 

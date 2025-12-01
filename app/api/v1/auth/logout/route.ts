@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { adaptZodError } from "@/app/lib/zod-error-adaptor";
-import { query } from "@/app/lib/db";
+import { query, ensureApiRefreshTokensTable } from "@/app/lib/db";
 import { verifyApiToken, verifyRefreshToken } from "@/app/lib/jwt-service";
 import { addCorsHeaders } from "@/app/lib/api-middleware";
 
@@ -44,6 +44,9 @@ export async function POST(request: NextRequest) {
       );
       return addCorsHeaders(response, origin || undefined);
     }
+
+    // Ensure api_refresh_tokens table exists before using it
+    await ensureApiRefreshTokensTable();
 
     // Remove refresh token from database
     await query(
@@ -91,6 +94,9 @@ export async function DELETE(request: NextRequest) {
       );
       return addCorsHeaders(response, origin || undefined);
     }
+
+    // Ensure api_refresh_tokens table exists before using it
+    await ensureApiRefreshTokensTable();
 
     // Remove all refresh tokens for this user
     await query(

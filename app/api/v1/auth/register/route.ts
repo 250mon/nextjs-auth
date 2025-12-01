@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { adaptZodError } from "@/app/lib/zod-error-adaptor";
 import bcrypt from "bcryptjs";
-import { query } from "@/app/lib/db";
+import { query, ensureApiRefreshTokensTable } from "@/app/lib/db";
 import { generateApiToken, generateRefreshToken } from "@/app/lib/jwt-service";
 import { addCorsHeaders } from "@/app/lib/api-middleware";
 
@@ -98,6 +98,9 @@ export async function POST(request: NextRequest) {
       id: newUser.id,
       email: newUser.email,
     });
+
+    // Ensure api_refresh_tokens table exists before using it
+    await ensureApiRefreshTokensTable();
 
     // Store refresh token in database
     await query(

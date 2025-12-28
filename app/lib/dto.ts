@@ -11,12 +11,16 @@ export async function getProfileDTO(slug: string) {
         users.email, 
         users.password, 
         users.slug, 
-        users.isadmin
+        users.isadmin,
+        users.is_super_admin,
+        users.company_id,
+        companies.name as company_name
       FROM users
+      LEFT JOIN companies ON users.company_id = companies.id
       WHERE users.slug = $1
     `, [slug]);
     
-    const user = result.rows[0] as User;
+    const user = result.rows[0] as User & { company_name?: string };
     if (!user) {
       throw new Error('User not found');
     }

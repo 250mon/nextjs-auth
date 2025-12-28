@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { UsersTableSkeleton } from "@/app/ui/skeletons";
 import { CreateUser } from "@/app/ui/admin/users/buttons";
 import UsersTable from "@/app/ui/admin/users/table";
+import Search from "@/app/ui/search";
 
 
 interface PageProps {
@@ -35,6 +36,7 @@ export default async function UsersPage({ searchParams }: PageProps) {
       </div>
       
       <div className="mt-4 flex items-center justify-between gap-2 md:mt-8">
+        <Search placeholder="Search users by name or email..." />
         <div className="flex gap-2">
           <CreateUser />
         </div>

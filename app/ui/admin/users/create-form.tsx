@@ -2,11 +2,17 @@
 
 import Link from 'next/link';
 import { Button } from '@/app/ui/button';
-import { createUser, UserState } from '@/app/actions/admin-actions';
+import { createUser, UserState } from '@/app/actions/admin/user-actions';
 import { useActionState } from 'react';
-import { UserIcon, EnvelopeIcon, KeyIcon, IdentificationIcon } from '@heroicons/react/24/outline';
+import { UserIcon, EnvelopeIcon, KeyIcon, IdentificationIcon, BuildingOfficeIcon } from '@heroicons/react/24/outline';
+import { Company } from '@/app/lib/definitions';
 
-export default function CreateUserForm() {
+interface CreateUserFormProps {
+  companies?: Company[];
+  isSuperAdmin?: boolean;
+}
+
+export default function CreateUserForm({ companies = [], isSuperAdmin = false }: CreateUserFormProps) {
   const initialState: UserState = { message: '', errors: {} };
   const [state, formAction] = useActionState<UserState, FormData>(createUser, initialState);
 
@@ -28,6 +34,8 @@ export default function CreateUserForm() {
                 className="peer block w-full rounded-md border border-gray-200 py-2 pl-10 text-sm outline-2 placeholder:text-gray-500"
                 aria-describedby="name-error"
                 required
+                minLength={3}
+                maxLength={100}
               />
               <UserIcon className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-gray-500 peer-focus:text-gray-900" />
             </div>
@@ -104,7 +112,7 @@ export default function CreateUserForm() {
         {/* Slug */}
         <div className="mb-4">
           <label htmlFor="slug" className="mb-2 block text-sm font-medium">
-            Username (URL Slug)
+            Username (URL Slug) <span className="text-gray-500 font-normal">(Optional)</span>
           </label>
           <div className="relative mt-2 rounded-md">
             <div className="relative">
@@ -112,10 +120,9 @@ export default function CreateUserForm() {
                 id="slug"
                 name="slug"
                 type="text"
-                placeholder="Enter username (lowercase, no spaces)"
+                placeholder="Leave empty to auto-generate from name"
                 className="peer block w-full rounded-md border border-gray-200 py-2 pl-10 text-sm outline-2 placeholder:text-gray-500"
                 aria-describedby="slug-error"
-                required
                 pattern="[a-z0-9-]+"
                 title="Only lowercase letters, numbers, and hyphens allowed"
               />
@@ -129,8 +136,49 @@ export default function CreateUserForm() {
                   </p>
                 ))}
             </div>
+            <p className="mt-1 text-xs text-gray-500">
+              If left empty, a unique username will be automatically generated from the user&apos;s name.
+            </p>
           </div>
         </div>
+
+        {/* Company Assignment - Only for Super Admins */}
+        {isSuperAdmin && (
+          <div className="mb-4">
+            <label htmlFor="company_id" className="mb-2 block text-sm font-medium">
+              Company <span className="text-gray-500 font-normal">(Optional)</span>
+            </label>
+            <div className="relative mt-2 rounded-md">
+              <div className="relative">
+                <select
+                  id="company_id"
+                  name="company_id"
+                  className="peer block w-full rounded-md border border-gray-200 py-2 pl-10 text-sm outline-2 placeholder:text-gray-500"
+                  aria-describedby="company_id-error"
+                >
+                  <option value="">No Company</option>
+                  {companies.map((company) => (
+                    <option key={company.id} value={company.id}>
+                      {company.name}
+                    </option>
+                  ))}
+                </select>
+                <BuildingOfficeIcon className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-gray-500 peer-focus:text-gray-900" />
+              </div>
+              <div id="company_id-error" aria-live="polite" aria-atomic="true">
+                {state.errors?.company_id &&
+                  state.errors.company_id.map((error: string) => (
+                    <p className="mt-2 text-sm text-red-500" key={error}>
+                      {error}
+                    </p>
+                  ))}
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                Assign this user to a company for multi-tenant management.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Admin Status */}
         <div className="mb-4">

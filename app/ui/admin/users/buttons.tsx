@@ -1,6 +1,6 @@
 import { PencilIcon, PlusIcon, TrashIcon, UserIcon, EyeSlashIcon, EyeIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
-import { toggleUserStatus } from '@/app/actions/admin-actions';
+import { toggleUserStatus } from '@/app/actions/admin/user-actions';
 
 export function CreateUser() {
   return (

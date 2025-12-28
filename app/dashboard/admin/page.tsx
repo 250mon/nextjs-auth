@@ -6,7 +6,8 @@ import {
   UserGroupIcon, 
   Cog6ToothIcon, 
   ChartBarIcon,
-  DocumentTextIcon 
+  DocumentTextIcon,
+  BuildingOfficeIcon
 } from "@heroicons/react/24/outline";
 
 export default async function AdminPage() {
@@ -25,6 +26,20 @@ export default async function AdminPage() {
       icon: UserGroupIcon,
       color: "bg-blue-500"
     },
+    {
+      title: "Invitations",
+      description: "Send and manage user invitations",
+      href: "/dashboard/admin/invitations",
+      icon: DocumentTextIcon,
+      color: "bg-teal-500"
+    },
+    ...(currentUser.is_super_admin ? [{
+      title: "Company Management",
+      description: "Manage companies and multi-tenant settings",
+      href: "/dashboard/admin/companies",
+      icon: BuildingOfficeIcon,
+      color: "bg-indigo-500"
+    }] : []),
     {
       title: "System Settings",
       description: "Configure system-wide settings",

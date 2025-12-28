@@ -47,9 +47,33 @@ export async function POST(request: NextRequest) {
     
   } catch (error) {
     console.error("API setup error:", error);
+    
+    // Handle specific error types
+    let errorMessage = "Failed to setup API";
+    let statusCode = 500;
+    
+    if (error instanceof Error) {
+      if (error.message.includes("connect") || error.message.includes("ECONNREFUSED")) {
+        errorMessage = "Database connection failed";
+        statusCode = 503;
+      } else if (error.message.includes("timeout")) {
+        errorMessage = "Request timeout";
+        statusCode = 504;
+      } else if (error.message.includes("permission") || error.message.includes("access")) {
+        errorMessage = "Database permission denied";
+        statusCode = 403;
+      }
+    }
+    
     const response = NextResponse.json(
-      { success: false, error: "Failed to setup API" },
-      { status: 500 }
+      { 
+        success: false, 
+        error: errorMessage,
+        ...(process.env.NODE_ENV === 'development' && { 
+          details: error instanceof Error ? error.message : String(error) 
+        })
+      },
+      { status: statusCode }
     );
     return addCorsHeaders(response, request.headers.get("origin") || undefined);
   }

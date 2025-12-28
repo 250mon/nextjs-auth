@@ -175,6 +175,32 @@ export async function requireAdmin(request: NextRequest): Promise<{
 }
 
 /**
+ * Super Admin authorization middleware
+ */
+export async function requireSuperAdmin(request: NextRequest): Promise<{
+  success: boolean;
+  user?: TokenPayload;
+  error?: string;
+  status?: number;
+}> {
+  const authResult = await authenticateRequest(request);
+  
+  if (!authResult.success) {
+    return authResult;
+  }
+  
+  if (!authResult.user?.is_super_admin) {
+    return {
+      success: false,
+      error: "Super Admin access required",
+      status: 403,
+    };
+  }
+  
+  return authResult;
+}
+
+/**
  * Complete API middleware that handles CORS, rate limiting, and authentication
  */
 export async function apiMiddleware(
@@ -182,6 +208,7 @@ export async function apiMiddleware(
   options: {
     requireAuth?: boolean;
     requireAdmin?: boolean;
+    requireSuperAdmin?: boolean;
     skipRateLimit?: boolean;
   } = {}
 ): Promise<{
@@ -222,10 +249,15 @@ export async function apiMiddleware(
   }
   
   // Authentication
-  if (options.requireAuth || options.requireAdmin) {
-    const authResult = options.requireAdmin 
-      ? await requireAdmin(request)
-      : await authenticateRequest(request);
+  if (options.requireAuth || options.requireAdmin || options.requireSuperAdmin) {
+    let authResult;
+    if (options.requireSuperAdmin) {
+      authResult = await requireSuperAdmin(request);
+    } else if (options.requireAdmin) {
+      authResult = await requireAdmin(request);
+    } else {
+      authResult = await authenticateRequest(request);
+    }
     
     if (!authResult.success) {
       const response = NextResponse.json(

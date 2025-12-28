@@ -1,6 +1,6 @@
 import { UpdateUser, DeleteUser, ViewUser, ToggleUserStatus } from '@/app/ui/admin/users/buttons';
 import { formatDateToLocal } from '@/app/lib/utils';
-import { fetchFilteredUsers } from '@/app/actions/admin-actions';
+import { fetchFilteredUsers } from '@/app/actions/admin/user-actions';
 import { CheckIcon, XMarkIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
 
 export default async function UsersTable({

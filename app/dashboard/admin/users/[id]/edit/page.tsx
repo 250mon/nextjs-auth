@@ -1,8 +1,10 @@
 import { getCurrentUser } from "@/app/lib/dal";
-import { fetchUserById } from "@/app/actions/admin-actions";
+import { fetchUserById } from "@/app/actions/admin/user-actions";
 import { notFound } from "next/navigation";
 import Breadcrumbs from '@/app/ui/breadcrumbs';
 import EditUserForm from '@/app/ui/admin/users/edit-form';
+import { fetchCompanies } from '@/app/actions/admin/company-actions';
+import type { Company } from '@/app/lib/definitions';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -23,6 +25,17 @@ export default async function EditUserPage({ params }: PageProps) {
     notFound();
   }
 
+  // Fetch companies if user is super admin
+  let companies: Company[] = [];
+  if (currentUser.is_super_admin) {
+    try {
+      companies = await fetchCompanies();
+    } catch (error) {
+      console.error('Failed to fetch companies:', error);
+      // Continue without companies if fetch fails
+    }
+  }
+
   return (
     <main>
       <Breadcrumbs
@@ -36,7 +49,7 @@ export default async function EditUserPage({ params }: PageProps) {
           },
         ]}
       />
-      <EditUserForm user={user} />
+      <EditUserForm user={user} companies={companies} isSuperAdmin={currentUser.is_super_admin} />
     </main>
   );
 }

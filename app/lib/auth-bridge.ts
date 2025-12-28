@@ -5,6 +5,7 @@
 
 import { auth } from "@/auth.config";
 import { generateApiToken } from "./jwt-service";
+import { query } from "./db";
 
 /**
  * Get API token for current NextAuth session
@@ -18,12 +19,26 @@ export async function getApiTokenFromSession(): Promise<string | null> {
       return null;
     }
 
-    // Generate API token from NextAuth session
+    // Fetch full user data from database to get is_super_admin and company_id
+    const userResult = await query(
+      "SELECT id, email, name, isadmin, is_super_admin, company_id FROM users WHERE id = $1",
+      [session.user.id]
+    );
+
+    if (userResult.rows.length === 0) {
+      return null;
+    }
+
+    const user = userResult.rows[0] as { id: string; email: string; name: string; isadmin: boolean; is_super_admin: boolean; company_id: string | null };
+
+    // Generate API token from user data
     const apiToken = await generateApiToken({
-      id: session.user.id,
-      email: session.user.email,
-      name: session.user.name,
-      isadmin: false, // You might want to add this to your NextAuth session
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      isadmin: user.isadmin,
+      is_super_admin: user.is_super_admin,
+      company_id: user.company_id,
     });
 
     return apiToken;

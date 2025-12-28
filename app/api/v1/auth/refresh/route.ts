@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
 
     // Get user data
     const userResult = await query(
-      "SELECT id, name, email, isadmin, slug FROM users WHERE id = $1 AND active = true",
+      "SELECT id, name, email, isadmin, is_super_admin, company_id, slug FROM users WHERE id = $1 AND active = true",
       [payload.id]
     );
 
@@ -78,12 +78,30 @@ export async function POST(request: NextRequest) {
 
     const user = userResult.rows[0];
 
+    // Get company information if user has a company
+    let company = null;
+    if (user.company_id) {
+      const companyResult = await query(
+        "SELECT id, name, description FROM companies WHERE id = $1",
+        [user.company_id]
+      );
+      if (companyResult.rows.length > 0) {
+        company = {
+          id: companyResult.rows[0].id,
+          name: companyResult.rows[0].name,
+          description: companyResult.rows[0].description,
+        };
+      }
+    }
+
     // Generate new access token
     const accessToken = await generateApiToken({
       id: user.id,
       email: user.email,
       name: user.name,
       isadmin: user.isadmin,
+      is_super_admin: user.is_super_admin,
+      company_id: user.company_id,
     });
 
     // Return success response
@@ -95,7 +113,10 @@ export async function POST(request: NextRequest) {
           name: user.name,
           email: user.email,
           isadmin: user.isadmin,
+          is_super_admin: user.is_super_admin,
+          company_id: user.company_id,
           slug: user.slug,
+          company: company,
         },
         tokens: {
           accessToken,
@@ -107,9 +128,33 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error("Token refresh error:", error);
+    
+    // Handle specific error types
+    let errorMessage = "Internal server error";
+    let statusCode = 500;
+    
+    if (error instanceof Error) {
+      if (error.message.includes("connect") || error.message.includes("ECONNREFUSED")) {
+        errorMessage = "Database connection failed";
+        statusCode = 503;
+      } else if (error.message.includes("timeout")) {
+        errorMessage = "Request timeout";
+        statusCode = 504;
+      } else if (error.message.includes("jwt") || error.message.includes("token")) {
+        errorMessage = "Token processing error";
+        statusCode = 401;
+      }
+    }
+    
     const response = NextResponse.json(
-      { success: false, error: "Internal server error" },
-      { status: 500 }
+      { 
+        success: false, 
+        error: errorMessage,
+        ...(process.env.NODE_ENV === 'development' && { 
+          details: error instanceof Error ? error.message : String(error) 
+        })
+      },
+      { status: statusCode }
     );
     return addCorsHeaders(response, request.headers.get("origin") || undefined);
   }

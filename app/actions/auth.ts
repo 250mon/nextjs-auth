@@ -115,10 +115,9 @@ export async function signUp(state: FormState, formData: FormData) {
       const slug = `${baseSlug}-${uniqueId}`;
 
       // Insert user
-      const userResult = await query(
+      await query(
         `INSERT INTO users (name, email, password, slug, isadmin, active, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-         RETURNING id`,
+         VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())`,
         [
           parsedCredentials.data.name,
           parsedCredentials.data.email,
@@ -128,8 +127,6 @@ export async function signUp(state: FormState, formData: FormData) {
           true,
         ],
       );
-
-      const newUserId = userResult.rows[0].id;
 
       const result = await query("SELECT * FROM users WHERE email = $1", [
         parsedCredentials.data.email,

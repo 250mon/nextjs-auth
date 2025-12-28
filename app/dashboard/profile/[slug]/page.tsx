@@ -89,6 +89,22 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
                 </span>
               </div>
             )}
+
+            {profile.is_super_admin ? (
+              <div className="flex items-center space-x-4">
+                <span className="w-32 font-semibold">Company:</span>
+                <span className="text-gray-700 font-semibold text-blue-600">
+                  Super Admin
+                </span>
+              </div>
+            ) : ('company_name' in profile && profile.company_name && (
+              <div className="flex items-center space-x-4">
+                <span className="w-32 font-semibold">Company:</span>
+                <span className="text-gray-700">
+                  {profile.company_name}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       </main>

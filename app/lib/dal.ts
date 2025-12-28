@@ -21,11 +21,14 @@ export const getCurrentUser = cache(async () => {
 
   try {
     const result = await query(
-      'SELECT * FROM users WHERE id = $1 AND active = true',
+      `SELECT u.*, c.name as company_name 
+       FROM users u 
+       LEFT JOIN companies c ON u.company_id = c.id 
+       WHERE u.id = $1 AND u.active = true`,
       [session.user.id as string]
     );
     
-    const user = result.rows[0] as User;
+    const user = result.rows[0] as User & { company_name?: string };
     
     // If user not found or inactive, they should be logged out
     if (!user) {

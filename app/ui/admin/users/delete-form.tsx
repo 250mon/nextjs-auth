@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { deleteUser } from '@/app/actions/admin-actions';
+import { deleteUser } from '@/app/actions/admin/user-actions';
 import { User } from '@/app/lib/definitions';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';

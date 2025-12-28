@@ -56,11 +56,25 @@ export async function POST(request: NextRequest) {
 
     const { email, password, name } = parsedCredentials.data;
 
-    // Check if user already exists
-    const existingUser = await query("SELECT id FROM users WHERE email = $1", [email]);
+    // Normalize email to lowercase for consistency
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Check if user already exists (case-insensitive check)
+    const existingUser = await query(
+      "SELECT id FROM users WHERE LOWER(email) = LOWER($1)",
+      [normalizedEmail]
+    );
     if (existingUser.rows.length > 0) {
       const response = NextResponse.json(
-        { success: false, error: "User with this email already exists" },
+        { 
+          success: false, 
+          error: "User with this email already exists",
+          details: {
+            fieldErrors: {
+              email: ["An account with this email address already exists"]
+            }
+          }
+        },
         { status: 409 }
       );
       return addCorsHeaders(response, origin || undefined);
@@ -76,15 +90,75 @@ export async function POST(request: NextRequest) {
     const uniqueId = Math.random().toString(36).substring(2, 8);
     const slug = `${baseSlug}-${uniqueId}`;
 
-    // Insert user
-    const userResult = await query(
-      `INSERT INTO users (name, email, password, slug, isadmin, active, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-       RETURNING id, name, email, isadmin, slug`,
-      [name, email, hashedPassword, slug, false, true]
-    );
+    // Insert user (use normalized email)
+    let userResult;
+    try {
+      userResult = await query(
+        `INSERT INTO users (name, email, password, slug, isadmin, is_super_admin, active, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+         RETURNING id, name, email, isadmin, is_super_admin, company_id, slug`,
+        [name, normalizedEmail, hashedPassword, slug, false, false, true]
+      );
+    } catch (dbError: unknown) {
+      // Handle unique constraint violations (e.g., email or slug already exists)
+      if (dbError && typeof dbError === 'object' && 'code' in dbError && dbError.code === '23505') { // PostgreSQL unique violation
+        // Determine which constraint was violated
+        const constraintName = ('constraint' in dbError && typeof dbError.constraint === 'string') ? dbError.constraint : '';
+        const errorDetail = ('detail' in dbError && typeof dbError.detail === 'string') ? dbError.detail : '';
+        const isEmailConflict = constraintName.toLowerCase().includes('email') || 
+                                 errorDetail.toLowerCase().includes('email');
+        const isSlugConflict = constraintName.toLowerCase().includes('slug') || 
+                               errorDetail.toLowerCase().includes('slug');
+        
+        const fieldErrors: Record<string, string[]> = {};
+        let errorMessage = "User with this email or slug already exists";
+        
+        if (isEmailConflict) {
+          fieldErrors.email = ["An account with this email address already exists"];
+          errorMessage = "User with this email already exists";
+        }
+        if (isSlugConflict) {
+          fieldErrors.slug = ["A user with this slug already exists"];
+          if (!isEmailConflict) {
+            errorMessage = "User with this slug already exists";
+          }
+        }
+        
+        const response = NextResponse.json(
+          { 
+            success: false, 
+            error: errorMessage,
+            details: {
+              fieldErrors: Object.keys(fieldErrors).length > 0 ? fieldErrors : {
+                email: ["An account with this email address already exists"]
+              }
+            }
+          },
+          { status: 409 }
+        );
+        return addCorsHeaders(response, origin || undefined);
+      }
+      // Re-throw other database errors
+      throw dbError;
+    }
 
     const newUser = userResult.rows[0];
+
+    // Get company information if user has a company
+    let company = null;
+    if (newUser.company_id) {
+      const companyResult = await query(
+        "SELECT id, name, description FROM companies WHERE id = $1",
+        [newUser.company_id]
+      );
+      if (companyResult.rows.length > 0) {
+        company = {
+          id: companyResult.rows[0].id,
+          name: companyResult.rows[0].name,
+          description: companyResult.rows[0].description,
+        };
+      }
+    }
 
     // Generate tokens
     const accessToken = await generateApiToken({
@@ -92,6 +166,8 @@ export async function POST(request: NextRequest) {
       email: newUser.email,
       name: newUser.name,
       isadmin: newUser.isadmin,
+      is_super_admin: newUser.is_super_admin,
+      company_id: newUser.company_id,
     });
 
     const refreshToken = await generateRefreshToken({
@@ -117,7 +193,10 @@ export async function POST(request: NextRequest) {
           name: newUser.name,
           email: newUser.email,
           isadmin: newUser.isadmin,
+          is_super_admin: newUser.is_super_admin,
+          company_id: newUser.company_id,
           slug: newUser.slug,
+          company: company,
         },
         tokens: {
           accessToken,
@@ -130,9 +209,31 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error("Registration error:", error);
+    
+    // Handle specific error types
+    let errorMessage = "Internal server error";
+    let statusCode = 500;
+    
+    if (error instanceof Error) {
+      // Check for database connection errors
+      if (error.message.includes("connect") || error.message.includes("ECONNREFUSED")) {
+        errorMessage = "Database connection failed";
+        statusCode = 503;
+      } else if (error.message.includes("timeout")) {
+        errorMessage = "Request timeout";
+        statusCode = 504;
+      }
+    }
+    
     const response = NextResponse.json(
-      { success: false, error: "Internal server error" },
-      { status: 500 }
+      { 
+        success: false, 
+        error: errorMessage,
+        ...(process.env.NODE_ENV === 'development' && { 
+          details: error instanceof Error ? error.message : String(error) 
+        })
+      },
+      { status: statusCode }
     );
     return addCorsHeaders(response, request.headers.get("origin") || undefined);
   }

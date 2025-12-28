@@ -3,14 +3,18 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: dev
       args:
         - NEXT_PUBLIC_BASE_PATH=${NEXT_PUBLIC_BASE_PATH:-/auth}
     container_name: nextjs-auth-app-dev
     restart: unless-stopped
-    profiles:
-      - dev
     ports:
       - "${APP_PORT:-13203}:3000"
+    # Mount source code as volume for hot reload
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
     # Loads all variables from .env.development into the container
     env_file:
       - .env
@@ -21,6 +25,8 @@ services:
       POSTGRES_URL: ${POSTGRES_URL}
       DATABASE_SSL: ${DATABASE_SSL:-false}
       DEBUG: ${DEBUG:-postgres:*}
+    profiles:
+      - dev
 
   app-prod:
     build:
@@ -30,8 +36,6 @@ services:
         - NEXT_PUBLIC_BASE_PATH=${NEXT_PUBLIC_BASE_PATH:-/auth}
     container_name: nextjs-auth-app
     restart: unless-stopped
-    profiles:
-      - prod
     ports:
       - "${APP_PORT:-13203}:3000"
     # Loads all variables from .env.production into the container
@@ -44,3 +48,5 @@ services:
       POSTGRES_URL: ${POSTGRES_URL}
       DATABASE_SSL: ${DATABASE_SSL:-false}
       DEBUG: ${DEBUG:-false}
+    profiles:
+      - prod

@@ -21,7 +21,9 @@ const loginSchema = z.object({
 
 async function getUser(email: string): Promise<User | undefined> {
   try {
-    const result = await query("SELECT * FROM users WHERE email = $1 AND active = true", [email]);
+    // Normalize email to lowercase for case-insensitive lookup
+    const normalizedEmail = email.toLowerCase().trim();
+    const result = await query("SELECT * FROM users WHERE LOWER(email) = LOWER($1) AND active = true", [normalizedEmail]);
     return result.rows[0] as User;
   } catch (error) {
     console.error("Failed to fetch user:", error);
@@ -80,6 +82,8 @@ export async function POST(request: NextRequest) {
       email: user.email,
       name: user.name,
       isadmin: user.isadmin,
+      is_super_admin: user.is_super_admin,
+      company_id: user.company_id,
     });
 
     const refreshToken = await generateRefreshToken({
@@ -96,6 +100,22 @@ export async function POST(request: NextRequest) {
       [user.id, refreshToken, new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)] // 7 days
     );
 
+    // Get company information if user has a company
+    let company = null;
+    if (user.company_id) {
+      const companyResult = await query(
+        "SELECT id, name, description FROM companies WHERE id = $1",
+        [user.company_id]
+      );
+      if (companyResult.rows.length > 0) {
+        company = {
+          id: companyResult.rows[0].id,
+          name: companyResult.rows[0].name,
+          description: companyResult.rows[0].description,
+        };
+      }
+    }
+
     // Return success response
     const response = NextResponse.json({
       success: true,
@@ -105,7 +125,10 @@ export async function POST(request: NextRequest) {
           name: user.name,
           email: user.email,
           isadmin: user.isadmin,
+          is_super_admin: user.is_super_admin,
+          company_id: user.company_id,
           slug: user.slug,
+          company: company,
         },
         tokens: {
           accessToken,
@@ -118,9 +141,31 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error("Login error:", error);
+    
+    // Handle specific error types
+    let errorMessage = "Internal server error";
+    let statusCode = 500;
+    
+    if (error instanceof Error) {
+      // Check for database connection errors
+      if (error.message.includes("connect") || error.message.includes("ECONNREFUSED")) {
+        errorMessage = "Database connection failed";
+        statusCode = 503;
+      } else if (error.message.includes("timeout")) {
+        errorMessage = "Request timeout";
+        statusCode = 504;
+      }
+    }
+    
     const response = NextResponse.json(
-      { success: false, error: "Internal server error" },
-      { status: 500 }
+      { 
+        success: false, 
+        error: errorMessage,
+        ...(process.env.NODE_ENV === 'development' && { 
+          details: error instanceof Error ? error.message : String(error) 
+        })
+      },
+      { status: statusCode }
     );
     return addCorsHeaders(response, request.headers.get("origin") || undefined);
   }

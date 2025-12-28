@@ -1,6 +1,6 @@
 import { getCurrentUser } from "@/app/lib/dal";
 import { notFound } from "next/navigation";
-import { fetchUserById } from "@/app/actions/admin-actions";
+import { fetchUserById } from "@/app/actions/admin/user-actions";
 import Breadcrumbs from '@/app/ui/breadcrumbs';
 import { lusitana } from '@/app/ui/fonts';
 import DeleteUserForm from '@/app/ui/admin/users/delete-form';

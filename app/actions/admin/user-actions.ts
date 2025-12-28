@@ -16,7 +16,8 @@ const CreateUserSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   isadmin: z.boolean(),
-  slug: z.string().min(1, 'Slug is required'),
+  slug: z.string().optional(),
+  company_id: z.string().nullable().optional(),
 });
 
 const UpdateUserSchema = z.object({
@@ -25,6 +26,7 @@ const UpdateUserSchema = z.object({
   email: z.string().email('Invalid email address'),
   isadmin: z.boolean(),
   active: z.boolean(),
+  company_id: z.string().nullable().optional(),
 });
 
 const ChangeUserPasswordSchema = z.object({
@@ -41,19 +43,37 @@ async function requireAdmin() {
   return currentUser;
 }
 
+// Utility function to check super admin permissions (exported for use in other modules)
+export async function requireSuperAdmin() {
+  const currentUser = await getCurrentUser();
+  if (!currentUser?.is_super_admin) {
+    throw new Error('Super admin access required');
+  }
+  return currentUser;
+}
+
 // Fetch filtered users with pagination
 export async function fetchFilteredUsers(
   searchQuery: string,
   currentPage: number,
   status: string = 'all'
 ) {
-  await requireAdmin();
+  const currentUser = await requireAdmin();
   
   const ITEMS_PER_PAGE = 10;
   const offset = (currentPage - 1) * ITEMS_PER_PAGE;
   
   let whereClause = `WHERE (users.name ILIKE $1 OR users.email ILIKE $1)`;
   const params: (string | number)[] = [`%${searchQuery}%`];
+  
+  // Company isolation: Regular admins can only see users in their company
+  if (!currentUser.is_super_admin) {
+    if (!currentUser.company_id) {
+      throw new Error('You must be associated with a company to view users');
+    }
+    whereClause += ` AND users.company_id = $${params.length + 1}`;
+    params.push(currentUser.company_id);
+  }
   
   if (status === 'active') {
     whereClause += ` AND users.active = true`;
@@ -74,6 +94,7 @@ export async function fetchFilteredUsers(
         users.isadmin,
         users.slug,
         users.active,
+        users.company_id,
         users.created_at,
         users.updated_at
       FROM users
@@ -91,10 +112,19 @@ export async function fetchFilteredUsers(
 
 // Get total count of users for pagination
 export async function fetchUsersPages(searchQuery: string, status: string = 'all') {
-  await requireAdmin();
+  const currentUser = await requireAdmin();
   
   let whereClause = `WHERE (users.name ILIKE $1 OR users.email ILIKE $1)`;
   const params: (string | number)[] = [`%${searchQuery}%`];
+  
+  // Company isolation: Regular admins can only see users in their company
+  if (!currentUser.is_super_admin) {
+    if (!currentUser.company_id) {
+      throw new Error('You must be associated with a company to view users');
+    }
+    whereClause += ` AND users.company_id = $${params.length + 1}`;
+    params.push(currentUser.company_id);
+  }
   
   if (status === 'active') {
     whereClause += ` AND users.active = true`;
@@ -121,10 +151,10 @@ export async function fetchUsersPages(searchQuery: string, status: string = 'all
 
 // Get user by ID
 export async function fetchUserById(id: string) {
-  await requireAdmin();
+  const currentUser = await requireAdmin();
   
   try {
-    const result = await query(`
+    let queryText = `
       SELECT 
         users.id,
         users.name,
@@ -132,11 +162,24 @@ export async function fetchUserById(id: string) {
         users.isadmin,
         users.slug,
         users.active,
+        users.company_id,
         users.created_at,
         users.updated_at
       FROM users
       WHERE users.id = $1
-    `, [id]);
+    `;
+    const params: string[] = [id];
+    
+    // Company isolation: Regular admins can only access users in their company
+    if (!currentUser.is_super_admin) {
+      if (!currentUser.company_id) {
+        throw new Error('You must be associated with a company to view users');
+      }
+      queryText += ` AND users.company_id = $2`;
+      params.push(currentUser.company_id);
+    }
+    
+    const result = await query(queryText, params);
 
     return result.rows[0] as User;
   } catch (error) {
@@ -156,6 +199,7 @@ export type UserState = {
     slug?: string[];
     active?: string[];
     newPassword?: string[];
+    company_id?: string[];
   };
   message: string;
 };
@@ -164,13 +208,16 @@ export type UserState = {
 export async function createUser(prevState: UserState, formData: FormData) {
   await requireAdmin();
 
+  const companyId = formData.get('company_id');
+  const slugInput = formData.get('slug');
   const validatedFields = CreateUserSchema.safeParse({
     id: crypto.randomUUID(),
     name: formData.get('name'),
     email: formData.get('email'),
     password: formData.get('password'),
     isadmin: formData.get('isadmin') === 'true',
-    slug: formData.get('slug'),
+    slug: slugInput === '' || slugInput === null ? undefined : String(slugInput),
+    company_id: companyId === '' || companyId === null ? null : String(companyId),
   });
 
   if (!validatedFields.success) {
@@ -183,25 +230,121 @@ export async function createUser(prevState: UserState, formData: FormData) {
         password: adapted.fieldErrors["password"] ? [adapted.fieldErrors["password"]] : undefined,
         isadmin: adapted.fieldErrors["isadmin"] ? [adapted.fieldErrors["isadmin"]] : undefined,
         slug: adapted.fieldErrors["slug"] ? [adapted.fieldErrors["slug"]] : undefined,
+        company_id: adapted.fieldErrors["company_id"] ? [adapted.fieldErrors["company_id"]] : undefined,
       },
       message: 'Missing Fields. Failed to create user.',
     };
   }
 
-  const { id, name, email, password, isadmin, slug } = validatedFields.data;
+  const { id, name, email, password, isadmin, slug: providedSlug, company_id } = validatedFields.data;
 
   try {
-    // Check if email or slug already exists
+    // Generate slug if not provided
+    let slug = providedSlug;
+    if (!slug || slug.trim() === '') {
+      // Generate unique slug from name (similar to register route)
+      const baseSlug = name
+        .toLowerCase()
+        .replace(/\s+/g, "-");
+      const uniqueId = Math.random().toString(36).substring(2, 8);
+      slug = `${baseSlug}-${uniqueId}`;
+      
+      // Check if generated slug exists and regenerate if needed
+      let attempts = 0;
+      const maxAttempts = 10;
+      while (attempts < maxAttempts) {
+        const slugCheck = await query(
+          'SELECT id FROM users WHERE slug = $1',
+          [slug]
+        );
+        
+        if (slugCheck.rows.length === 0) {
+          break; // Slug is unique, exit loop
+        }
+        
+        // Regenerate with new random ID
+        const newUniqueId = Math.random().toString(36).substring(2, 8);
+        slug = `${baseSlug}-${newUniqueId}`;
+        attempts++;
+      }
+      
+      // Final fallback if still not unique after max attempts
+      if (attempts >= maxAttempts) {
+        slug = `${baseSlug}-${crypto.randomUUID().substring(0, 8)}`;
+      }
+    } else {
+      // Validate provided slug format
+      slug = slug.trim().toLowerCase();
+      if (!/^[a-z0-9-]+$/.test(slug)) {
+        return {
+          message: 'Slug must contain only lowercase letters, numbers, and hyphens.',
+          errors: {
+            slug: ['Slug must contain only lowercase letters, numbers, and hyphens.'],
+          },
+        };
+      }
+      
+      // Check if provided slug already exists
+      const slugCheck = await query(
+        'SELECT id FROM users WHERE slug = $1',
+        [slug]
+      );
+      
+      if (slugCheck.rows.length > 0) {
+        return {
+          message: 'This username (slug) is already taken.',
+          errors: {
+            slug: ['This username is already taken. Please choose another.'],
+          },
+        };
+      }
+    }
+
+    // Check if email already exists
     const existingUser = await query(
-      'SELECT id FROM users WHERE email = $1 OR slug = $2',
-      [email, slug]
+      'SELECT id FROM users WHERE email = $1',
+      [email]
     );
 
     if (existingUser.rows.length > 0) {
       return {
-        message: 'Email or slug already exists.',
+        message: 'Email already exists.',
         errors: {},
       };
+    }
+
+    // Company assignment logic
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return {
+        message: 'Authentication required.',
+        errors: {},
+      };
+    }
+    
+    let finalCompanyId: string | null = null;
+    
+    if (currentUser.is_super_admin) {
+      // Super admins can assign any company
+      if (company_id) {
+        const companyCheck = await query('SELECT id FROM companies WHERE id = $1', [company_id]);
+        if (companyCheck.rows.length === 0) {
+          return {
+            message: 'Selected company does not exist.',
+            errors: {},
+          };
+        }
+        finalCompanyId = company_id;
+      }
+    } else {
+      // Regular admins can only create users in their own company
+      if (!currentUser.company_id) {
+        return {
+          message: 'You must be associated with a company to create users.',
+          errors: {},
+        };
+      }
+      finalCompanyId = currentUser.company_id;
     }
 
     // Hash password
@@ -209,9 +352,9 @@ export async function createUser(prevState: UserState, formData: FormData) {
 
     // Insert user
     await query(`
-      INSERT INTO users (id, name, email, password, isadmin, slug, active, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, true, NOW(), NOW())
-    `, [id, name, email, hashedPassword, isadmin, slug]);
+      INSERT INTO users (id, name, email, password, isadmin, slug, company_id, active, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, true, NOW(), NOW())
+    `, [id, name, email, hashedPassword, isadmin, slug, finalCompanyId || null]);
 
   } catch (error) {
     console.error('Database Error:', error);
@@ -229,12 +372,14 @@ export async function createUser(prevState: UserState, formData: FormData) {
 export async function updateUser(id: string, prevState: UserState, formData: FormData) {
   await requireAdmin();
 
+  const companyId = formData.get('company_id');
   const validatedFields = UpdateUserSchema.safeParse({
     id,
     name: formData.get('name'),
     email: formData.get('email'),
     isadmin: formData.get('isadmin') === 'true',
     active: formData.get('active') === 'true',
+    company_id: companyId === '' || companyId === null ? null : String(companyId),
   });
 
   if (!validatedFields.success) {
@@ -246,14 +391,41 @@ export async function updateUser(id: string, prevState: UserState, formData: For
         email: adapted.fieldErrors["email"] ? [adapted.fieldErrors["email"]] : undefined,
         isadmin: adapted.fieldErrors["isadmin"] ? [adapted.fieldErrors["isadmin"]] : undefined,
         active: adapted.fieldErrors["active"] ? [adapted.fieldErrors["active"]] : undefined,
+        company_id: adapted.fieldErrors["company_id"] ? [adapted.fieldErrors["company_id"]] : undefined,
       },
       message: 'Missing Fields. Failed to update user.',
     };
   }
 
-  const { name, email, isadmin, active } = validatedFields.data;
+  const { name, email, isadmin, active, company_id } = validatedFields.data;
 
   try {
+    const currentUser = await getCurrentUser();
+    
+    // Company isolation: Regular admins can only update users in their company
+    if (!currentUser || !currentUser.is_super_admin) {
+      if (!currentUser) {
+        return {
+          message: 'Authentication required.',
+          errors: {},
+        };
+      }
+      const userCheck = await query('SELECT company_id FROM users WHERE id = $1', [id]);
+      if (userCheck.rows.length === 0) {
+        return {
+          message: 'User not found.',
+          errors: {},
+        };
+      }
+      const userCompanyId = userCheck.rows[0].company_id;
+      if (currentUser.company_id !== userCompanyId) {
+        return {
+          message: 'You do not have permission to update this user.',
+          errors: {},
+        };
+      }
+    }
+    
     // Check if email already exists for another user
     const existingUser = await query(
       'SELECT id FROM users WHERE email = $1 AND id != $2',
@@ -267,12 +439,37 @@ export async function updateUser(id: string, prevState: UserState, formData: For
       };
     }
 
+    // Company assignment logic
+    let finalCompanyId: string | null = null;
+    if (currentUser && currentUser.is_super_admin) {
+      // Super admins can assign any company or remove company assignment
+      if (company_id && company_id !== '') {
+        const companyCheck = await query('SELECT id FROM companies WHERE id = $1', [company_id]);
+        if (companyCheck.rows.length === 0) {
+          return {
+            message: 'Selected company does not exist.',
+            errors: {},
+          };
+        }
+        finalCompanyId = company_id;
+      } else {
+        // Empty string or null means no company
+        finalCompanyId = null;
+      }
+    } else {
+      // Regular admins cannot change company_id - keep existing
+      const userCheck = await query('SELECT company_id FROM users WHERE id = $1', [id]);
+      if (userCheck.rows.length > 0) {
+        finalCompanyId = userCheck.rows[0].company_id;
+      }
+    }
+
     // Update user basic info
     await query(`
       UPDATE users 
-      SET name = $1, email = $2, isadmin = $3, active = $4, updated_at = NOW()
-      WHERE id = $5
-    `, [name, email, isadmin, active, id]);
+      SET name = $1, email = $2, isadmin = $3, active = $4, company_id = $5, updated_at = NOW()
+      WHERE id = $6
+    `, [name, email, isadmin, active, finalCompanyId, id]);
 
   } catch (error) {
     console.error('Database Error:', error);
@@ -331,9 +528,23 @@ export async function changeUserPassword(id: string, prevState: UserState, formD
 
 // Toggle user active status
 export async function toggleUserStatus(id: string) {
-  await requireAdmin();
+  const currentUser = await requireAdmin();
 
   try {
+    // Company isolation: Regular admins can only toggle users in their company
+    if (!currentUser.is_super_admin) {
+      if (!currentUser.company_id) {
+        throw new Error('You must be associated with a company to manage users');
+      }
+      const userCheck = await query('SELECT company_id FROM users WHERE id = $1', [id]);
+      if (userCheck.rows.length === 0) {
+        throw new Error('User not found');
+      }
+      if (userCheck.rows[0].company_id !== currentUser.company_id) {
+        throw new Error('You do not have permission to update this user');
+      }
+    }
+    
     await query(`
       UPDATE users 
       SET active = NOT active, updated_at = NOW()
@@ -350,19 +561,25 @@ export async function toggleUserStatus(id: string) {
 
 // Delete user
 export async function deleteUser(id: string) {
-  await requireAdmin();
+  const currentUser = await requireAdmin();
 
   try {
     // Don't allow deleting the current admin user
-    const currentUser = await getCurrentUser();
-    if (currentUser?.id === id) {
+    if (currentUser.id === id) {
       return { message: 'Error: Cannot delete your own account.', errors: {} };
     }
 
-    // Check if user exists
+    // Check if user exists and company isolation
     const userToDelete = await fetchUserById(id);
     if (!userToDelete) {
       return { message: 'Error: User not found.', errors: {} };
+    }
+    
+    // Company isolation: Regular admins can only delete users in their company
+    if (!currentUser.is_super_admin) {
+      if (userToDelete.company_id !== currentUser.company_id) {
+        return { message: 'Error: You do not have permission to delete this user.', errors: {} };
+      }
     }
 
     // Check if this is the last admin user
@@ -395,3 +612,4 @@ export async function deleteUser(id: string) {
     return { message: 'Error: Failed to delete user.', errors: {} };
   }
 }
+

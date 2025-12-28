@@ -9,6 +9,8 @@ export interface TokenPayload {
   email: string;
   name: string;
   isadmin: boolean;
+  is_super_admin: boolean;
+  company_id: string | null;
   iat?: number;
   exp?: number;
 }

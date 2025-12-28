@@ -30,10 +30,12 @@ export async function GET(request: NextRequest) {
     const countResult = await query(countQuery, queryParams);
     const total = parseInt(countResult.rows[0].count);
     
-    // Get users
+    // Get users with company information
     const usersQuery = `
-      SELECT u.id, u.name, u.email, u.isadmin, u.slug, u.active, u.created_at, u.updated_at
+      SELECT u.id, u.name, u.email, u.isadmin, u.is_super_admin, u.company_id, u.slug, u.active, u.created_at, u.updated_at,
+             c.id as company_id_full, c.name as company_name, c.description as company_description
       FROM users u
+      LEFT JOIN companies c ON u.company_id = c.id
       ${whereClause}
       ORDER BY u.created_at DESC
       LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
@@ -46,10 +48,17 @@ export async function GET(request: NextRequest) {
       name: user.name,
       email: user.email,
       isadmin: user.isadmin,
+      is_super_admin: user.is_super_admin,
+      company_id: user.company_id,
       slug: user.slug,
       active: user.active,
       createdAt: user.created_at,
       updatedAt: user.updated_at,
+      company: user.company_id_full ? {
+        id: user.company_id_full,
+        name: user.company_name,
+        description: user.company_description,
+      } : null,
     }));
     
     const response = NextResponse.json({

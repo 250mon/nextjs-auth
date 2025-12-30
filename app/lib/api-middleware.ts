@@ -72,22 +72,58 @@ export function getCorsHeaders(origin?: string): Record<string, string> {
     ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
     : ['http://localhost:3000', 'http://localhost:3001'];
 
-  // Determine the origin to allow
-  let allowedOrigin = '*';
-  if (origin && allowedOrigins.includes(origin)) {
-    allowedOrigin = origin;
-  } else if (allowedOrigins.length === 1 && allowedOrigins[0] !== '*') {
-    allowedOrigin = allowedOrigins[0];
-  }
 
-  return {
-    "Access-Control-Allow-Origin": allowedOrigin,
+  // Check if wildcard is explicitly set
+  const allowAllOrigins = allowedOrigins.includes('*');
+  
+  // Base CORS headers
+  const headers: Record<string, string> = {
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, Accept, Origin",
-    "Access-Control-Allow-Credentials": "true",
     "Access-Control-Max-Age": "86400", // 24 hours
     "Access-Control-Expose-Headers": "X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset",
   };
+
+  // Determine the origin to allow
+  if (allowAllOrigins) {
+    // If '*' is explicitly in ALLOWED_ORIGINS, allow all origins
+    // Note: Cannot use '*' with credentials, so we must use the actual origin if provided
+    if (origin) {
+      headers["Access-Control-Allow-Origin"] = origin;
+      headers["Access-Control-Allow-Credentials"] = "true";
+    } else {
+      // No origin header (e.g., same-origin or non-browser client)
+      headers["Access-Control-Allow-Origin"] = '*';
+      headers["Access-Control-Allow-Credentials"] = "false"; // Can't use credentials with '*'
+    }
+  } else if (origin && allowedOrigins.includes(origin)) {
+    // Origin is in the allowed list - allow it
+    headers["Access-Control-Allow-Origin"] = origin;
+    headers["Access-Control-Allow-Credentials"] = "true";
+  } else if (origin) {
+    // Origin is provided but NOT in the allowed list - reject by not setting Access-Control-Allow-Origin
+    // This will cause the browser to block the CORS request
+    // Still return other headers for consistency
+    headers["Access-Control-Allow-Credentials"] = "true";
+    // Intentionally NOT setting Access-Control-Allow-Origin to block the request
+  } else {
+    // No origin header - this is normal for:
+    // - Same-origin requests (browser doesn't send Origin for same-origin)
+    // - Server-side requests (backend-to-backend)
+    // - Non-browser clients
+    // For these cases, we should allow the request since CORS doesn't apply
+    // Use the first allowed origin as a fallback, or allow all if configured
+    if (allowedOrigins.length > 0) {
+      headers["Access-Control-Allow-Origin"] = allowedOrigins[0];
+      headers["Access-Control-Allow-Credentials"] = "true";
+    } else {
+      // No allowed origins configured - allow all (fallback)
+      headers["Access-Control-Allow-Origin"] = '*';
+      headers["Access-Control-Allow-Credentials"] = "false";
+    }
+  }
+
+  return headers;
 }
 
 /**
@@ -96,9 +132,10 @@ export function getCorsHeaders(origin?: string): Record<string, string> {
 export function handleCors(request: NextRequest): NextResponse | null {
   if (request.method === "OPTIONS") {
     const origin = request.headers.get("origin");
+    const corsHeaders = getCorsHeaders(origin || undefined);
     return new NextResponse(null, {
       status: 200,
-      headers: getCorsHeaders(origin || undefined),
+      headers: corsHeaders,
     });
   }
   return null;

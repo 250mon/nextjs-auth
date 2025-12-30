@@ -27,6 +27,23 @@ ALLOWED_ORIGINS="*"
 
 If `ALLOWED_ORIGINS` is not set, it defaults to `http://localhost:3000,http://localhost:3001`.
 
+### When Origin Header is Not Sent
+
+**It's completely normal for requests to not include the `Origin` header** in the following scenarios:
+
+1. **Same-Origin Requests**: When the web app and auth server share the same origin (same protocol, domain, and port), browsers don't send the `Origin` header. CORS doesn't apply to same-origin requests.
+
+2. **Server-Side Requests**: Backend-to-backend API calls (from Node.js, Python, Java, etc.) don't include `Origin` because they're not browser-initiated.
+
+3. **Non-Browser Clients**: Mobile apps, command-line tools (curl, Postman), and other non-browser clients typically don't send `Origin`.
+
+4. **Simple Requests**: Some simple same-origin requests may omit the header.
+
+**The CORS middleware handles this correctly** by:
+- Allowing requests without `Origin` header (since CORS doesn't apply)
+- Using the first allowed origin as a fallback for CORS headers
+- Logging these cases for debugging purposes
+
 ### CORS Headers
 
 The following CORS headers are automatically added to all API responses:

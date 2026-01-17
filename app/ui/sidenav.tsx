@@ -18,7 +18,7 @@ export default async function SideNav({ NavLinks }: { NavLinks: React.ComponentT
         href="/"
       >
         <div className="w-32 text-white md:w-40">
-          <CompanyLogo companyName={currentUser?.company_name} />
+          <CompanyLogo companyName={currentUser?.company_name} variant="compact" />
         </div>
       </Link>
       <div className="flex grow flex-col space-y-2">

@@ -93,9 +93,6 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copy public assets
-COPY --from=builder /app/public ./public
-
 # Create .next directory and set permissions for prerender cache
 RUN mkdir -p .next
 RUN chown nextjs:nodejs .next
@@ -104,6 +101,10 @@ RUN chown nextjs:nodejs .next
 # https://nextjs.org/docs/advanced-features/output-file-tracing
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Ensure public folder exists with correct permissions (standalone should include it, but this ensures it's there)
+# Copy public assets explicitly to ensure they're available (standalone mode should include them, but being explicit)
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
 USER nextjs
 

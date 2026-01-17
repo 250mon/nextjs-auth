@@ -16,8 +16,8 @@ export default function Page() {
           <p
             className={`${lusitana.className} text-xl text-gray-800 md:text-3xl md:leading-normal`}
           >
-            <strong>Welcome to Danaul.</strong><br />
-            We are a clinic helping the neighborhood to stay healthy.
+            <strong>Welcome to Danaul Authentication System.</strong><br /><br />
+            We are a clinic helping the people to stay healthy.
           </p>
           <Link
             href="/login"

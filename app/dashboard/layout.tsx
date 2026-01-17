@@ -3,14 +3,17 @@ import NavLinks from "@/app/ui/dashboard/nav-links";
 import HamburgerMenu from "@/app/ui/dashboard/hamburger-menu";
 import Link from "next/link";
 import CompanyLogo from "@/app/ui/company-logo";
+import { getCurrentUser } from "@/app/lib/dal";
 
-export default function Layout({ children }: { children: React.ReactNode }) {
+export default async function Layout({ children }: { children: React.ReactNode }) {
+  const currentUser = await getCurrentUser();
+  
   return (
     <div className="flex h-screen flex-col md:flex-row md:overflow-hidden">
       <div className="md:hidden fixed top-0 left-0 w-full h-16 bg-blue-600 z-10 flex items-center px-4">
         <Link href="/">
-          <div className="w-32 text-white">
-            <CompanyLogo />
+          <div className="w-auto max-w-[200px] text-white">
+            <CompanyLogo companyName={currentUser?.company_name} variant="compact" />
           </div>
         </Link>
       </div>

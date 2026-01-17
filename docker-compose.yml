@@ -28,6 +28,9 @@ services:
       POSTGRES_URL: ${POSTGRES_URL}
       DATABASE_SSL: ${DATABASE_SSL:-false}
       DEBUG: ${DEBUG:-postgres:*}
+      # Enable polling for file watching (required for hot reload in Docker)
+      WATCHPACK_POLLING: ${WATCHPACK_POLLING:-true}
+      CHOKIDAR_USEPOLLING: ${CHOKIDAR_USEPOLLING:-true}
     profiles:
       - dev
 

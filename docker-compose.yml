@@ -1,15 +1,18 @@
 services:
-  app-dev:
+  auth-app-dev:
+    image: lambki/auth-app-dev:latest
+    container_name: auth-app-dev
     build:
       context: .
       dockerfile: Dockerfile
       target: dev
       args:
-        - NEXT_PUBLIC_BASE_PATH=${NEXT_PUBLIC_BASE_PATH:-/auth}
-    container_name: nextjs-auth-app-dev
+        - NEXT_PUBLIC_BASE_PATH=${NEXT_PUBLIC_BASE_PATH}
     restart: unless-stopped
     ports:
       - "${APP_PORT:-13203}:3000"
+    networks:
+      - my-shared-proxy-net
     # Mount source code as volume for hot reload
     volumes:
       - .:/app
@@ -21,23 +24,26 @@ services:
     environment:
       # Node environment (defaults to development if not set)
       NODE_ENV: ${NODE_ENV:-development}
-      NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH:-/auth}
+      NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH}
       POSTGRES_URL: ${POSTGRES_URL}
       DATABASE_SSL: ${DATABASE_SSL:-false}
       DEBUG: ${DEBUG:-postgres:*}
     profiles:
       - dev
 
-  app-prod:
+  auth-app-prod:
+    image: lambki/auth-app-prod:latest
+    container_name: auth-app-prod
     build:
       context: .
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_BASE_PATH=${NEXT_PUBLIC_BASE_PATH:-/auth}
-    container_name: nextjs-auth-app
+        - NEXT_PUBLIC_BASE_PATH=${NEXT_PUBLIC_BASE_PATH}
     restart: unless-stopped
     ports:
       - "${APP_PORT:-13203}:3000"
+    networks:
+      - my-shared-proxy-net
     # Loads all variables from .env.production into the container
     env_file:
       - .env
@@ -50,3 +56,7 @@ services:
       DEBUG: ${DEBUG:-false}
     profiles:
       - prod
+
+networks:
+  my-shared-proxy-net:
+    external: true

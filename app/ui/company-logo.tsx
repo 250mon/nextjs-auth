@@ -1,13 +1,13 @@
 import { lusitana } from '@/app/ui/fonts';
 import Image from 'next/image';
-import { getImageSrc } from '@/app/lib/utils';
+import { getPathWithBasePath } from '@/app/lib/utils';
 
 export default function CompanyLogo({ companyName }: { companyName?: string }) { return (
     <div
       className={`${lusitana.className} flex flex-row items-center leading-none text-white`}
     >
       <Image 
-        src={getImageSrc("/danaul-logo-blue-sm.png")} 
+        src={getPathWithBasePath("/danaul-logo-blue-sm.png")} 
         alt="Danaul Logo" 
         width={48} 
         height={48} 

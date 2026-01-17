@@ -49,20 +49,24 @@ export const formatDateToLocal = (
 // These are safe to import in Edge Runtime (middleware) as they don't import database code
 export const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
-export function createUrl(path: string, baseUrl: URL): URL {
-  const pathWithBase = basePath ? `${basePath}${path}` : path;
-  return new URL(pathWithBase, baseUrl);
+// Core helper to prepend basePath to a path
+// Normalizes the path (ensures it starts with /) and prepends basePath if set
+function prependBasePath(path: string): string {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return basePath ? `${basePath}${normalizedPath}` : normalizedPath;
 }
 
-// Helper function to get image source path with basePath support
-// When basePath is set, we need to explicitly include it in image paths
-// because Next.js Image component with unoptimized images doesn't always handle basePath correctly
-export function getImageSrc(path: string): string {
-  // Ensure path starts with /
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  // If basePath is set, prepend it to the path
-  // This is necessary when image optimization is disabled
-  return basePath ? `${basePath}${normalizedPath}` : normalizedPath;
+// Helper function to create a relative URL with basePath prepended
+export function createBasePathRelativeUrl(path: string, baseUrl: URL): URL {
+  return new URL(prependBasePath(path), baseUrl);
+}
+
+// Helper function to get a path with basePath prepended
+// When basePath is set, we need to explicitly include it in paths
+// This is useful for static assets like images when Next.js Image component 
+// with unoptimized images doesn't always handle basePath correctly
+export function getPathWithBasePath(path: string): string {
+  return prependBasePath(path);
 }
 
 // Environment utilities

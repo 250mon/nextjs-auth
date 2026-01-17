@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { handleCors, addCorsHeaders } from "@/app/lib/api-middleware";
-import { basePath, createUrl } from "@/app/lib/utils";
+import { basePath, createBasePathRelativeUrl } from "@/app/lib/utils";
 
 // 1. Specify protected and public routes
 const protectedRoutes = ["/dashboard"];
@@ -36,12 +36,12 @@ export default async function middleware(req: NextRequest) {
 
   // 4. Redirect to /login if the user is not authenticated
   if (isProtectedRoute && !token) {
-    return NextResponse.redirect(createUrl("/login", req.nextUrl));
+    return NextResponse.redirect(createBasePathRelativeUrl("/login", req.nextUrl));
   }
 
   // 5. Redirect to /dashboard if the user is authenticated
   if (isPublicRoute && token && !req.nextUrl.pathname.startsWith("/dashboard")) {
-    return NextResponse.redirect(createUrl("/dashboard", req.nextUrl));
+    return NextResponse.redirect(createBasePathRelativeUrl("/dashboard", req.nextUrl));
   }
 
   return NextResponse.next();

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ClipboardIcon, CheckIcon } from '@heroicons/react/24/outline';
+import { basePath } from '@/app/lib/utils';
 
 interface CopyInvitationLinkProps {
   token: string;
@@ -13,7 +14,6 @@ export function CopyInvitationLink({ token }: CopyInvitationLinkProps) {
   const getInvitationUrl = () => {
     if (typeof window === 'undefined') return '';
     const baseUrl = window.location.origin;
-    const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
     return `${baseUrl}${basePath}/invite/${token}`;
   };
 

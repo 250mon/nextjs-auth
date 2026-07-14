@@ -43,10 +43,12 @@ services:
       args:
         - NEXT_PUBLIC_BASE_PATH=${NEXT_PUBLIC_BASE_PATH}
     restart: unless-stopped
-    ports:
-      - "${APP_PORT:-13203}:3000"
+    expose:
+      - "3000"
     networks:
-      - my-shared-proxy-net
+      edge:
+        aliases:
+          - auth-app-prod
     # Loads all variables from .env.production into the container
     env_file:
       - .env
@@ -62,4 +64,6 @@ services:
 
 networks:
   my-shared-proxy-net:
+    external: true
+  edge:
     external: true

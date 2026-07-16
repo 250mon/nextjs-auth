@@ -76,50 +76,55 @@ This project includes Docker configuration for easy deployment.
 ### Prerequisites
 
 - Docker and Docker Compose installed on your system
+- For the `dev` profile, the external `my-shared-proxy-net` Docker network must already exist (`docker network create my-shared-proxy-net`)
+- For the `prod` profile, the external `edge` Docker network must already exist — this is the shared network created by the `danaul-caddy` reverse proxy stack, which routes traffic to this app directly (there is no nginx or published host port in prod anymore)
 
 ### Quick Start
 
 1. **Set up environment variables**:
-   
-   Ensure you have `.env.development` and `.env.production` files in your project root with the required variables:
-   
-   **`.env.development`** (for development):
+
+   Both the `dev` and `prod` Compose profiles load variables from a single `.env` file in the project root (via the `env_file` directive) — there's no separate `.env.development` / `.env.production` split. Create `.env` with the required variables:
+
    ```bash
    POSTGRES_URL=postgresql://user:password@host:port/database
    JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
    JWT_REFRESH_SECRET=your-super-secret-refresh-key-change-this-in-production
    AUTH_SECRET=your-nextauth-secret-change-this-in-production
+   AUTH_TRUST_HOST=true
+   ALLOWED_ORIGINS=https://your-frontend-domain.com
+   NEXT_PUBLIC_BASE_PATH=/auth
+   APP_PORT=13203
+   DATABASE_SSL=false
    NODE_ENV=development
-   DEBUG=true
+   DEBUG=postgres:*
    ```
-   
-   **`.env.production`** (for production):
-   ```bash
-   POSTGRES_URL=postgresql://user:password@host:port/database
-   JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
-   JWT_REFRESH_SECRET=your-super-secret-refresh-key-change-this-in-production
-   AUTH_SECRET=your-nextauth-secret-change-this-in-production
-   NODE_ENV=production
-   DEBUG=false
-   ```
+
+   `NODE_ENV`, `DEBUG`, and `NEXT_PUBLIC_BASE_PATH` all have profile-specific fallback values baked into `docker-compose.yml` if you leave them unset in `.env` — see [Environment Variables](#environment-variables) below.
 
 2. **Build and start the application**:
    ```bash
-   # For development (uses .env.development)
+   # For development (hot reload, published on APP_PORT, joins my-shared-proxy-net)
    docker-compose --profile dev up -d
    
-   # For production (uses .env.production)
+   # For production (standalone build, joins the danaul-caddy edge network)
    docker-compose --profile prod up -d
    ```
 
 3. **Initialize the database**:
    ```bash
-   # Wait for the app to start, then run:
-   curl -X POST http://localhost:3000/api/v1/auth/setup
+   # Dev (published port, NEXT_PUBLIC_BASE_PATH unset by default):
+   curl -X POST http://localhost:${APP_PORT:-13203}/api/v1/auth/setup
+
+   # Prod (no published host port — call it from something on the `edge`
+   # network, e.g. danaul-caddy or another container, at auth-app-prod:3000;
+   # NEXT_PUBLIC_BASE_PATH defaults to /auth for this profile, so it's part
+   # of the path too):
+   curl -X POST http://auth-app-prod:3000/auth/api/v1/auth/setup
    ```
 
 4. **Access the application**:
-   - Application: http://localhost:3000
+   - Development: http://localhost:${APP_PORT:-13203}
+   - Production: not published to the host — reachable only via the shared `edge` network at the container alias `auth-app-prod:3000` (under the `/auth` base path by default), which `danaul-caddy` reverse-proxies to (see [Networking](#networking))
 
 ### Docker Commands
 
@@ -131,22 +136,30 @@ This project includes Docker configuration for easy deployment.
 
 ### Environment Variables
 
-The docker-compose.yml uses **profiles** to automatically load the correct environment file:
-- **`dev` profile**: Loads `.env.development`
-- **`prod` profile**: Loads `.env.production`
-
-Key environment variables (must be set in your `.env.development` and `.env.production` files):
+Both the `dev` and `prod` Compose profiles load variables from the same `.env` file via the `env_file` directive. A few variables also have profile-specific fallback defaults set directly in `docker-compose.yml`, used when the variable isn't set in `.env`.
 
 - `POSTGRES_URL` - **Required** - Full PostgreSQL connection string (e.g., `postgresql://user:password@host:port/database`)
-- `JWT_SECRET` - Secret for JWT tokens (⚠️ CHANGE IN PRODUCTION!)
-- `JWT_REFRESH_SECRET` - Secret for refresh tokens (⚠️ CHANGE IN PRODUCTION!)
-- `AUTH_SECRET` - NextAuth secret (⚠️ CHANGE IN PRODUCTION!)
-- `ALLOWED_ORIGINS` - CORS allowed origins (default: `*`)
-- `APP_PORT` - Application port (default: `3000`)
-- `NODE_ENV` - Node environment (`development` for dev, `production` for prod)
-- `DEBUG` - Enable debug logging (`true` for dev, `false` for prod)
+- `JWT_SECRET` - Secret for signing API access tokens (⚠️ CHANGE IN PRODUCTION!)
+- `JWT_REFRESH_SECRET` - Secret for signing API refresh tokens (⚠️ CHANGE IN PRODUCTION!)
+- `AUTH_SECRET` - NextAuth secret used to sign the session JWT (⚠️ CHANGE IN PRODUCTION!)
+- `AUTH_TRUST_HOST` - Needed by NextAuth when the app sits behind a reverse proxy (e.g. danaul-caddy) so it trusts the forwarded host/protocol
+- `ALLOWED_ORIGINS` - CORS allowed origins, comma-separated (default: `http://localhost:3000,http://localhost:3001` — see [CORS_CONFIGURATION.md](./CORS_CONFIGURATION.md))
+- `NEXT_PUBLIC_BASE_PATH` - Mounts the whole app (pages and API routes) under a subpath, e.g. `/auth`, for reverse-proxy deployments. Read at both build time and runtime. Defaults to `/auth` for the `prod` profile; unset (root path) for `dev`
+- `APP_PORT` - Host port published for the `dev` profile only (default: `13203`). The `prod` profile no longer publishes a host port — see Networking below
+- `NODE_ENV` - Node environment (defaults to `development` for `dev`, `production` for `prod`)
+- `DATABASE_SSL` - Whether to require SSL for the Postgres connection (default: `false`)
+- `DEBUG` - Debug logging, e.g. `postgres:*` to log DB queries (defaults to `postgres:*` for `dev`, `false` for `prod`)
+- `WATCHPACK_POLLING` / `CHOKIDAR_USEPOLLING` - Enable polling-based file watching so hot reload works inside the `dev` container (both default to `true`)
 
-**Note**: The `env_file` directive in docker-compose.yml automatically loads variables from the appropriate `.env` file based on the profile you use. Next.js will also read these files inside the container based on `NODE_ENV`.
+**Note**: Next.js also reads `.env` automatically outside of Docker (e.g. `pnpm dev`), so the same file can be reused for non-Docker local development.
+
+### Networking
+
+- **Service names**: The Compose services are `auth-app-dev` (image `lambki/auth-app-dev`) and `auth-app-prod` (image `lambki/auth-app-prod`), each running in a like-named container. These were renamed from the earlier `app-dev` / `app-prod` names.
+- **Development (`dev` profile)**: Publishes the app on the host at `${APP_PORT:-13203}` and joins the external `my-shared-proxy-net` network.
+- **Production (`prod` profile)**: Does **not** publish a host port or join `my-shared-proxy-net`. It only `expose`s port 3000 internally and joins the external `edge` network (the shared network created by the `danaul-caddy` stack) under the stable alias `auth-app-prod`. `danaul-caddy` reverse-proxies directly to `auth-app-prod:3000` over that network — nginx is no longer part of the request path.
+- Both `my-shared-proxy-net` and `edge` are declared as `external: true` and must already exist before starting the corresponding profile.
+- Other apps that call this service (e.g. the sibling `nextjs-inventory` app via its `AUTH_API_BASE_URL`) reach it the same way — over the shared `edge` network at `auth-app-prod:3000` in production.
 
 ### Production Deployment
 
@@ -154,10 +167,11 @@ For production, make sure to:
 
 1. Set strong, unique secrets for `JWT_SECRET`, `JWT_REFRESH_SECRET`, and `AUTH_SECRET`
 2. Configure `ALLOWED_ORIGINS` with specific domains (not `*`)
-3. Use environment-specific `.env` files or Docker secrets
+3. Keep `.env` out of version control and secured on the host, or use Docker secrets
 4. Ensure your external PostgreSQL database has SSL/TLS enabled
 5. Set up proper backup strategies for your external PostgreSQL database
 6. Use a secure connection string format: `postgresql://user:password@host:port/database?sslmode=require`
+7. Make sure the external `edge` Docker network (created by the `danaul-caddy` stack) exists before running `docker-compose --profile prod up -d`, and that `danaul-caddy` is configured to route to the `auth-app-prod` alias on port 3000
 
 ## Database Seeding
 

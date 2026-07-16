@@ -8,6 +8,14 @@ This document provides comprehensive documentation for the NextJS Auth API servi
 https://your-domain.com/api/v1
 ```
 
+**Note on basePath:** If this app is deployed with `NEXT_PUBLIC_BASE_PATH` set (e.g. `/auth` for the `prod` Docker Compose profile), that prefix applies to every route the app serves, including the API. In that case the base URL becomes:
+
+```
+https://your-domain.com/auth/api/v1
+```
+
+See [README.md](./README.md#environment-variables) for how `NEXT_PUBLIC_BASE_PATH` is configured.
+
 ## Authentication
 
 The API uses JWT (JSON Web Tokens) for authentication. Include the access token in the Authorization header:
@@ -812,6 +820,10 @@ ALLOWED_ORIGINS=https://your-frontend-domain.com,https://another-domain.com
 
 # Database (already configured)
 POSTGRES_URL=your-postgres-connection-string
+
+# Optional: mount the app (and this API) under a subpath, e.g. for reverse-proxy
+# deployments. Affects the Base URL — see note above.
+NEXT_PUBLIC_BASE_PATH=/auth
 ```
 
 ### 2. Database Setup

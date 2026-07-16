@@ -149,8 +149,9 @@ app/api/v1/
 |----------|-------------|---------|
 | `JWT_SECRET` | Secret for signing access tokens | Required |
 | `JWT_REFRESH_SECRET` | Secret for signing refresh tokens | Required |
-| `ALLOWED_ORIGINS` | CORS allowed origins (comma-separated) | `*` |
+| `ALLOWED_ORIGINS` | CORS allowed origins (comma-separated) | `http://localhost:3000,http://localhost:3001` |
 | `POSTGRES_URL` | Database connection string | Required |
+| `NEXT_PUBLIC_BASE_PATH` | Mounts the app (and this API) under a subpath, e.g. `/auth`, for reverse-proxy deployments. Prefixes every route, so it changes the effective Base URL — see [API_DOCUMENTATION.md](./API_DOCUMENTATION.md#base-url) | (none — root path) |
 
 ### Rate Limiting
 
@@ -166,6 +167,7 @@ app/api/v1/
 4. **Set up proper logging** and monitoring
 5. **Configure database** with proper SSL settings
 6. **Set up rate limiting** at the reverse proxy level
+7. **Docker Compose (`prod` profile)**: joins the shared `danaul-caddy` `edge` Docker network under the alias `auth-app-prod` and does not publish a host port — see [README.md](./README.md#networking) for the full networking setup
 
 ## 🤝 Integration
 

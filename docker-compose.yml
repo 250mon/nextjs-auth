@@ -13,6 +13,10 @@ services:
       - "${APP_PORT:-13203}:3000"
     networks:
       - my-shared-proxy-net
+      - default
+    depends_on:
+      postgres:
+        condition: service_healthy
     # Mount source code as volume for hot reload
     volumes:
       - .:/app
@@ -25,12 +29,32 @@ services:
       # Node environment (defaults to development if not set)
       NODE_ENV: ${NODE_ENV:-development}
       NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH}
-      POSTGRES_URL: ${POSTGRES_URL}
-      DATABASE_SSL: ${DATABASE_SSL:-false}
+      # Local dev-only database (`postgres` service below) — independent of
+      # POSTGRES_URL, which auth-app-prod uses for the shared prod instance.
+      POSTGRES_URL: postgresql://${DEV_POSTGRES_USER:-postgres}:${DEV_POSTGRES_PASSWORD:-postgres}@postgres:5432/${DEV_POSTGRES_DB:-danaul_auth}
+      DATABASE_SSL: "false"
       DEBUG: ${DEBUG:-postgres:*}
       # Enable polling for file watching (required for hot reload in Docker)
       WATCHPACK_POLLING: ${WATCHPACK_POLLING:-true}
       CHOKIDAR_USEPOLLING: ${CHOKIDAR_USEPOLLING:-true}
+    profiles:
+      - dev
+
+  postgres:
+    image: postgres:18-alpine
+    container_name: auth-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DEV_POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${DEV_POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${DEV_POSTGRES_DB:-danaul_auth}
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DEV_POSTGRES_USER:-postgres} -d ${DEV_POSTGRES_DB:-danaul_auth}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     profiles:
       - dev
 
@@ -67,3 +91,6 @@ networks:
     external: true
   edge:
     external: true
+
+volumes:
+  postgres_dev_data:

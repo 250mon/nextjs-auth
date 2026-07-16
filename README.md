@@ -76,37 +76,33 @@ This project includes Docker configuration for easy deployment.
 ### Prerequisites
 
 - Docker and Docker Compose installed on your system
-- For the `dev` profile, the external `my-shared-proxy-net` Docker network must already exist (`docker network create my-shared-proxy-net`)
+- For the `dev` profile, the external `my-shared-proxy-net` Docker network must already exist (`docker network create my-shared-proxy-net`) — this is only for cross-container dev traffic (e.g. `inventory-app-dev` calling this app), not the database
 - For the `prod` profile, the external `edge` Docker network must already exist — this is the shared network created by the `danaul-caddy` reverse proxy stack, which routes traffic to this app directly (there is no nginx or published host port in prod anymore)
 
 ### Quick Start
 
 1. **Set up environment variables**:
 
-   Both the `dev` and `prod` Compose profiles load variables from a single `.env` file in the project root (via the `env_file` directive) — there's no separate `.env.development` / `.env.production` split. Create `.env` with the required variables:
+   The `dev` and `prod` Compose profiles load from **separate** example files, since several variables genuinely differ between them (base path, CORS origins, database):
 
    ```bash
-   POSTGRES_URL=postgresql://user:password@host:port/database
-   JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
-   JWT_REFRESH_SECRET=your-super-secret-refresh-key-change-this-in-production
-   AUTH_SECRET=your-nextauth-secret-change-this-in-production
-   AUTH_TRUST_HOST=true
-   ALLOWED_ORIGINS=https://your-frontend-domain.com
-   NEXT_PUBLIC_BASE_PATH=/auth
-   APP_PORT=13203
-   DATABASE_SSL=false
-   NODE_ENV=development
-   DEBUG=postgres:*
+   # dev
+   cp dev.env.example .env
+
+   # prod
+   cp .env.example .env
    ```
 
-   `NODE_ENV`, `DEBUG`, and `NEXT_PUBLIC_BASE_PATH` all have profile-specific fallback values baked into `docker-compose.yml` if you leave them unset in `.env` — see [Environment Variables](#environment-variables) below.
+   Each host only ever runs one profile against its own `.env`, so there's no conflict — see [Environment Variables](#environment-variables) below for what's in each.
 
 2. **Build and start the application**:
    ```bash
-   # For development (hot reload, published on APP_PORT, joins my-shared-proxy-net)
+   # For development (hot reload, published on APP_PORT, joins my-shared-proxy-net,
+   # and spins up its own local `postgres` dev-profile container)
    docker-compose --profile dev up -d
-   
-   # For production (standalone build, joins the danaul-caddy edge network)
+
+   # For production (standalone build, joins the danaul-caddy edge network,
+   # connects to the shared prod Postgres instance via POSTGRES_URL)
    docker-compose --profile prod up -d
    ```
 
@@ -136,28 +132,36 @@ This project includes Docker configuration for easy deployment.
 
 ### Environment Variables
 
-Both the `dev` and `prod` Compose profiles load variables from the same `.env` file via the `env_file` directive. A few variables also have profile-specific fallback defaults set directly in `docker-compose.yml`, used when the variable isn't set in `.env`.
+The `dev` and `prod` Compose profiles load from separate example files (`dev.env.example` / `.env.example`, see Quick Start above) — copy whichever matches the profile you're running to `.env`. A few variables also have profile-specific fallback defaults set directly in `docker-compose.yml`, used when the variable isn't set in `.env`.
 
-- `POSTGRES_URL` - **Required** - Full PostgreSQL connection string (e.g., `postgresql://user:password@host:port/database`)
+- `POSTGRES_URL` - **Required for `prod`** - Full PostgreSQL connection string for the shared prod instance (e.g., `postgresql://user:password@host:port/database`). Not read for `dev` — see below
 - `JWT_SECRET` - Secret for signing API access tokens (⚠️ CHANGE IN PRODUCTION!)
 - `JWT_REFRESH_SECRET` - Secret for signing API refresh tokens (⚠️ CHANGE IN PRODUCTION!)
 - `AUTH_SECRET` - NextAuth secret used to sign the session JWT (⚠️ CHANGE IN PRODUCTION!)
 - `AUTH_TRUST_HOST` - Needed by NextAuth when the app sits behind a reverse proxy (e.g. danaul-caddy) so it trusts the forwarded host/protocol
-- `ALLOWED_ORIGINS` - CORS allowed origins, comma-separated (default: `http://localhost:3000,http://localhost:3001` — see [CORS_CONFIGURATION.md](./CORS_CONFIGURATION.md))
+- `ALLOWED_ORIGINS` - CORS allowed origins, comma-separated — genuinely different per profile (e.g. `http://localhost:13203` for `dev`, your real domain(s) for `prod`; see [CORS_CONFIGURATION.md](./CORS_CONFIGURATION.md))
 - `NEXT_PUBLIC_BASE_PATH` - Mounts the whole app (pages and API routes) under a subpath, e.g. `/auth`, for reverse-proxy deployments. Read at both build time and runtime. Defaults to `/auth` for the `prod` profile; unset (root path) for `dev`
 - `APP_PORT` - Host port published for the `dev` profile only (default: `13203`). The `prod` profile no longer publishes a host port — see Networking below
 - `NODE_ENV` - Node environment (defaults to `development` for `dev`, `production` for `prod`)
-- `DATABASE_SSL` - Whether to require SSL for the Postgres connection (default: `false`)
+- `DATABASE_SSL` - Whether to require SSL for the Postgres connection. Hardcoded to `false` for `dev` (local Postgres, no SSL); configurable for `prod` (default: `false`)
 - `DEBUG` - Debug logging, e.g. `postgres:*` to log DB queries (defaults to `postgres:*` for `dev`, `false` for `prod`)
 - `WATCHPACK_POLLING` / `CHOKIDAR_USEPOLLING` - Enable polling-based file watching so hot reload works inside the `dev` container (both default to `true`)
+
+#### Local dev database
+
+The `dev` profile no longer shares the prod Postgres instance. `docker-compose.yml` defines a `postgres` service (also scoped to the `dev` profile) that `auth-app-dev` depends on and connects to at `postgres:5432`; `POSTGRES_URL` and `DATABASE_SSL` are constructed directly in `docker-compose.yml` for this profile rather than read from `.env`. Optional overrides, with defaults matching the `postgres` service itself:
+
+- `DEV_POSTGRES_USER` (default: `postgres`)
+- `DEV_POSTGRES_PASSWORD` (default: `postgres`)
+- `DEV_POSTGRES_DB` (default: `danaul_auth`)
 
 **Note**: Next.js also reads `.env` automatically outside of Docker (e.g. `pnpm dev`), so the same file can be reused for non-Docker local development.
 
 ### Networking
 
 - **Service names**: The Compose services are `auth-app-dev` (image `lambki/auth-app-dev`) and `auth-app-prod` (image `lambki/auth-app-prod`), each running in a like-named container. These were renamed from the earlier `app-dev` / `app-prod` names.
-- **Development (`dev` profile)**: Publishes the app on the host at `${APP_PORT:-13203}` and joins the external `my-shared-proxy-net` network.
-- **Production (`prod` profile)**: Does **not** publish a host port or join `my-shared-proxy-net`. It only `expose`s port 3000 internally and joins the external `edge` network (the shared network created by the `danaul-caddy` stack) under the stable alias `auth-app-prod`. `danaul-caddy` reverse-proxies directly to `auth-app-prod:3000` over that network — nginx is no longer part of the request path.
+- **Development (`dev` profile)**: Publishes the app on the host at `${APP_PORT:-13203}` and joins both the external `my-shared-proxy-net` network (for cross-app dev traffic, e.g. `inventory-app-dev` calling this app) and the project's own default network (to reach the `postgres` dev-profile service by name).
+- **Production (`prod` profile)**: Does **not** publish a host port or join `my-shared-proxy-net`. It only `expose`s port 3000 internally and joins the external `edge` network (the shared network created by the `danaul-caddy` stack) under the stable alias `auth-app-prod`. `danaul-caddy` reverse-proxies directly to `auth-app-prod:3000` over that network — nginx is no longer part of the request path. It connects to the shared prod Postgres instance via `POSTGRES_URL`, not over `edge`.
 - Both `my-shared-proxy-net` and `edge` are declared as `external: true` and must already exist before starting the corresponding profile.
 - Other apps that call this service (e.g. the sibling `nextjs-inventory` app via its `AUTH_API_BASE_URL`) reach it the same way — over the shared `edge` network at `auth-app-prod:3000` in production.
 

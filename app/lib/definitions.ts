@@ -24,6 +24,7 @@ export type User = {
   company_id: string | null;
   slug: string;
   active: boolean;
+  must_change_password: boolean;
   created_at: Date;
   updated_at: Date;
   settings?: UserSettings;

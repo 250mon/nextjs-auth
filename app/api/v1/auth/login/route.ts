@@ -129,6 +129,7 @@ export async function POST(request: NextRequest) {
           company_id: user.company_id,
           slug: user.slug,
           company: company,
+          must_change_password: user.must_change_password,
         },
         tokens: {
           accessToken,

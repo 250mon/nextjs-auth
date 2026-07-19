@@ -77,7 +77,7 @@ This project includes Docker configuration for easy deployment.
 
 - Docker and Docker Compose installed on your system
 - For the `dev` profile, the external `my-shared-proxy-net` Docker network must already exist (`docker network create my-shared-proxy-net`) — this is only for cross-container dev traffic (e.g. `inventory-app-dev` calling this app), not the database
-- For the `prod` profile, the external `edge` Docker network must already exist — this is the shared network created by the `danaul-caddy` reverse proxy stack, which routes traffic to this app directly (there is no nginx or published host port in prod anymore)
+- For the `prod` profile, the external `edge` Docker network must already exist — this is the shared network created by the `danaul-caddy` reverse proxy stack, which routes traffic to this app directly (there is no nginx or published host port in prod anymore). To try the `prod` profile without a real reverse proxy, see [Testing prod locally without a reverse proxy](#testing-prod-locally-without-a-reverse-proxy)
 
 ### Quick Start
 
@@ -106,17 +106,9 @@ This project includes Docker configuration for easy deployment.
    docker-compose --profile prod up -d
    ```
 
-3. **Initialize the database**:
-   ```bash
-   # Dev (published port, NEXT_PUBLIC_BASE_PATH unset by default):
-   curl -X POST http://localhost:${APP_PORT:-13203}/api/v1/auth/setup
-
-   # Prod (no published host port — call it from something on the `edge`
-   # network, e.g. danaul-caddy or another container, at auth-app-prod:3000;
-   # NEXT_PUBLIC_BASE_PATH defaults to /auth for this profile, so it's part
-   # of the path too):
-   curl -X POST http://auth-app-prod:3000/auth/api/v1/auth/setup
-   ```
+3. **Database is initialized automatically** — no manual step needed:
+   - **Dev**: on a fresh Postgres volume, `scripts/docker-auto-seed.mjs` creates the schema and two sample users (see [Database Seeding](#database-seeding)) before the dev server starts. No-ops on every later start.
+   - **Prod**: `scripts/docker-ensure-schema.mjs` always creates the schema if missing (never inserts sample data), then creates exactly one super admin from `BOOTSTRAP_ADMIN_EMAIL`/`BOOTSTRAP_ADMIN_PASSWORD` if none exists yet (forced to change password on first login) — see [Production Deployment](#production-deployment).
 
 4. **Access the application**:
    - Development: http://localhost:${APP_PORT:-13203}
@@ -146,6 +138,7 @@ The `dev` and `prod` Compose profiles load from separate example files (`dev.env
 - `DATABASE_SSL` - Whether to require SSL for the Postgres connection. Hardcoded to `false` for `dev` (local Postgres, no SSL); configurable for `prod` (default: `false`)
 - `DEBUG` - Debug logging, e.g. `postgres:*` to log DB queries (defaults to `postgres:*` for `dev`, `false` for `prod`)
 - `WATCHPACK_POLLING` / `CHOKIDAR_USEPOLLING` - Enable polling-based file watching so hot reload works inside the `dev` container (both default to `true`)
+- `BOOTSTRAP_ADMIN_EMAIL` / `BOOTSTRAP_ADMIN_PASSWORD` - **`prod` only** - If no super admin exists yet, both must be set to auto-create the first one on startup (forced to change password on first login). Leave unset once you've created your first admin — see [Production Deployment](#production-deployment)
 
 #### Local dev database
 
@@ -176,20 +169,27 @@ For production, make sure to:
 5. Set up proper backup strategies for your external PostgreSQL database
 6. Use a secure connection string format: `postgresql://user:password@host:port/database?sslmode=require`
 7. Make sure the external `edge` Docker network (created by the `danaul-caddy` stack) exists before running `docker-compose --profile prod up -d`, and that `danaul-caddy` is configured to route to the `auth-app-prod` alias on port 3000
+8. Set `BOOTSTRAP_ADMIN_EMAIL` and `BOOTSTRAP_ADMIN_PASSWORD` before the first ever startup against a fresh database, so you have real admin credentials from day one instead of relying on `GET /seed`'s sample account (see [Database Seeding](#database-seeding) — that route is not safe to use in prod). Both env vars can be removed again afterward; `scripts/bootstrap-admin.mjs` only acts when no super admin exists yet
+
+### Testing prod locally without a reverse proxy
+
+You don't need a real `danaul-caddy`/Caddy instance to try the `prod` profile locally. Create a `docker-compose.override.yml` (gitignored — Compose merges it in automatically, no `-f` flag needed) that maps `auth-app-prod` to a host port directly and points it at a disposable Postgres container instead of the shared prod instance. One-time setup: `docker network create edge` (it just needs to exist; no actual Caddy required). See `CLAUDE.md`'s Docker section for the full override example.
 
 ## Database Seeding
 
-The application includes a seeding route to initialize the database with sample data:
+On a fresh database, the schema is created automatically on container startup (see `scripts/docker-auto-seed.mjs` for `dev`, `scripts/docker-ensure-schema.mjs` for `prod`, both documented in `CLAUDE.md`) — you don't need to do this manually. The routes below are for manually resetting or bootstrapping data afterward.
 
 ```bash
-# Seed the database with initial data
+# Drops and recreates ALL tables, then inserts sample data (drops existing data!)
 curl http://localhost:3000/seed
 ```
 
 This will create:
 - Sample companies (Danaul Inc., Goog)
-- Sample users (regular user, super admin, standalone user)
+- Sample users (regular user, super admin) — password `123456` for both
 - Invitations table structure
+
+**⚠️ Don't call this in production** — it's an unauthenticated `GET` route that wipes every table and reinserts a super admin with a well-known password. It exists for dev/demo convenience; for prod, create your first admin via `BOOTSTRAP_ADMIN_EMAIL`/`BOOTSTRAP_ADMIN_PASSWORD` instead (see [Production Deployment](#production-deployment)).
 
 ## Codebase Structure
 

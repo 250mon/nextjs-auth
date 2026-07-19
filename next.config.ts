@@ -43,6 +43,11 @@ console.log("");
 const nextConfig: NextConfig = {
   output: "standalone",
 
+  // Keep bcryptjs as a real node_modules dependency in the standalone output
+  // instead of inlining it into the webpack bundle — scripts/bootstrap-admin.mjs
+  // (run via plain `node`, outside the Next.js bundle) needs to `require` it directly.
+  serverExternalPackages: ["bcryptjs"],
+
   // Ensure static files are served in production
   trailingSlash: false,
 

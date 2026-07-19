@@ -9,6 +9,8 @@ services:
       args:
         - NEXT_PUBLIC_BASE_PATH=${NEXT_PUBLIC_BASE_PATH}
     restart: unless-stopped
+    # Seed the dev DB (schema + sample users) if it has no tables yet, then start the dev server
+    command: sh -c "node scripts/docker-auto-seed.mjs && pnpm dev"
     ports:
       - "${APP_PORT:-13203}:3000"
     networks:
@@ -67,6 +69,8 @@ services:
       args:
         - NEXT_PUBLIC_BASE_PATH=${NEXT_PUBLIC_BASE_PATH}
     restart: unless-stopped
+    # Create tables on a fresh database if they don't exist yet (no sample data); then start the server
+    command: sh -c "node scripts/docker-ensure-schema.mjs && node server.js"
     expose:
       - "3000"
     networks:
@@ -83,6 +87,10 @@ services:
       POSTGRES_URL: ${POSTGRES_URL}
       DATABASE_SSL: ${DATABASE_SSL:-false}
       DEBUG: ${DEBUG:-false}
+      # If no super admin exists yet, both must be set to auto-create the first admin on startup
+      # (forced to change their password on first login). See scripts/bootstrap-admin.mjs.
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
     profiles:
       - prod
 

@@ -1,5 +1,5 @@
 # Stage 1: Base image with pnpm
-FROM node:20-alpine AS base
+FROM node:24-alpine AS base
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
@@ -11,7 +11,7 @@ FROM base AS deps
 WORKDIR /app
 
 # Copy package files
-COPY package.json pnpm-lock.yaml* ./
+COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
@@ -105,6 +105,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Ensure public folder exists with correct permissions (standalone should include it, but this ensures it's there)
 # Copy public assets explicitly to ensure they're available (standalone mode should include them, but being explicit)
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+
+# Schema-bootstrap script run before the server starts (see docker-compose.yml)
+COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 
 USER nextjs
 

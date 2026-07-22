@@ -11,8 +11,8 @@ npm start          # Start production server
 npm run lint       # ESLint
 
 # Docker
-docker-compose --profile dev up -d    # Dev with hot reload
-docker-compose --profile prod up -d   # Production standalone
+docker compose -f docker-compose.dev.yml up -d   # Dev with hot reload
+docker compose up -d                             # Production standalone
 ```
 
 ## Architecture Overview
@@ -61,9 +61,9 @@ PostgreSQL with raw parameterized queries. Tables: `companies`, `users`, `invita
 
 Seed the database by hitting `GET /seed` — this drops all tables and recreates them with sample users (password: `123456`). This is separate from the automatic startup bootstrapping below.
 
-**Automatic schema bootstrap on container startup** (see `docker-compose.yml`'s `command:` for each service):
-- **Dev** (`auth-app-dev`): `scripts/docker-auto-seed.mjs` runs before `pnpm dev`. If `users` doesn't exist yet, creates the schema and the same two sample users as `GET /seed`. No-ops on every later start.
-- **Prod** (`auth-app-prod`): `scripts/docker-ensure-schema.mjs` runs before `node server.js`. Always creates the schema if missing (idempotent), but never inserts sample data. It then calls `scripts/bootstrap-admin.mjs`, which creates exactly one super admin from `BOOTSTRAP_ADMIN_EMAIL`/`BOOTSTRAP_ADMIN_PASSWORD` if no super admin exists yet (forced `must_change_password`). If neither var is set, it warns and continues; if only one is set, or the password is outside 6–100 chars, it fails the container start rather than silently skipping.
+**Automatic schema bootstrap on container startup** (see each file's `command:` for its service):
+- **Dev** (`auth-app-dev`, `docker-compose.dev.yml`): `scripts/docker-auto-seed.mjs` runs before `pnpm dev`. If `users` doesn't exist yet, creates the schema and the same two sample users as `GET /seed`. No-ops on every later start.
+- **Prod** (`auth-app-prod`, `docker-compose.yml`): `scripts/docker-ensure-schema.mjs` runs before `node server.js`. Always creates the schema if missing (idempotent), but never inserts sample data. It then calls `scripts/bootstrap-admin.mjs`, which creates exactly one super admin from `BOOTSTRAP_ADMIN_EMAIL`/`BOOTSTRAP_ADMIN_PASSWORD` if no super admin exists yet (forced `must_change_password`). If neither var is set, it warns and continues; if only one is set, or the password is outside 6–100 chars, it fails the container start rather than silently skipping.
 
 Both scripts are plain Node/`pg`/`bcryptjs` — deliberately kept outside the Next.js app so they never go through webpack/edge-runtime bundling (a Next.js `instrumentation.ts` hook was tried first and rejected: `pg`'s dependency chain needs `fs`/`path`/`net`, which broke the Edge runtime compile and failed `next build` outright).
 
@@ -73,7 +73,7 @@ Both scripts are plain Node/`pg`/`bcryptjs` — deliberately kept outside the Ne
 
 The app can be mounted at a custom path via `NEXT_PUBLIC_BASE_PATH` (e.g., `/auth`). This affects middleware routing, redirects, and static assets. The `basePath()` utility in `app/lib/utils.ts` provides the current base path.
 
-`basePath` is compiled into the server at **build time** (`next.config.ts` reads the env var during `next build`), not read at container runtime. Setting `NEXT_PUBLIC_BASE_PATH` in `docker-compose.yml`'s `environment:` has no effect by itself — it must also be passed as a `build.args` value (already wired up for `auth-app-dev`/`auth-app-prod` in `docker-compose.yml`), and the image rebuilt, to change it.
+`basePath` is compiled into the server at **build time** (`next.config.ts` reads the env var during `next build`), not read at container runtime. Setting `NEXT_PUBLIC_BASE_PATH` in a compose file's `environment:` has no effect by itself — it must also be passed as a `build.args` value (already wired up for `auth-app-dev` in `docker-compose.dev.yml` and `auth-app-prod` in `docker-compose.yml`), and the image rebuilt, to change it.
 
 ## Environment Variables
 
@@ -83,15 +83,15 @@ Optional: `NEXT_PUBLIC_BASE_PATH`, `ALLOWED_ORIGINS` (comma-separated), `DATABAS
 
 ## Docker
 
-Multi-stage Dockerfile: `base` → `deps` → `dev` / `builder` → `runner`. Dev profile mounts source with polling-based file watching. Production uses Next.js standalone output with non-root user.
+Two Compose files, no profiles: `docker-compose.dev.yml` (hot reload) and `docker-compose.yml` (production, the default file Compose loads with no `-f` flag). Multi-stage Dockerfile: `base` → `deps` → `dev` / `builder` → `runner`. The dev compose file mounts source with polling-based file watching. Production uses Next.js standalone output with non-root user.
 
 External networks (must exist before `docker compose up`, since both are declared `external: true`):
-- `my-shared-proxy-net` — dev profile
-- `edge` — prod profile (normally provided by the real Caddy reverse-proxy stack; see below for local testing without it)
+- `my-shared-proxy-net` — `docker-compose.dev.yml`
+- `edge` — `docker-compose.yml` (normally provided by the real Caddy reverse-proxy stack; see below for local testing without it)
 
 pnpm 10/11's supply-chain policy blocks native install scripts (`sharp`, `unrs-resolver`) unless explicitly approved — this is set in `pnpm-workspace.yaml`'s `allowBuilds`/`onlyBuiltDependencies`, which the `deps` stage's `COPY` must include (`pnpm-workspace.yaml*`) or `pnpm install --frozen-lockfile` fails with `ERR_PNPM_IGNORED_BUILDS` inside Docker (it only warns, not fails, in an interactive local shell — the difference is TTY vs non-TTY, not the pnpm version by itself).
 
-### Testing the prod profile locally without a reverse proxy
+### Testing the prod stack (docker-compose.yml) locally without a reverse proxy
 
 `docker-compose.override.yml` (gitignored, not committed — create it yourself if missing) layers on top of `docker-compose.yml` automatically whenever no `-f` flag is passed:
 - Maps `auth-app-prod` to `localhost:${PROD_TEST_PORT:-3000}` directly (bypassing the need for Caddy).
@@ -100,7 +100,7 @@ pnpm 10/11's supply-chain policy blocks native install scripts (`sharp`, `unrs-r
 
 One-time setup: `docker network create edge` (just needs to exist — no actual Caddy required for local testing). Then:
 ```bash
-docker compose --profile prod up -d --build
+docker compose up -d --build
 curl http://localhost:3000/seed   # or set BOOTSTRAP_ADMIN_EMAIL/PASSWORD instead
-docker compose --profile prod down -v   # -v also wipes the disposable DB's volume
+docker compose down -v   # -v also wipes the disposable DB's volume
 ```

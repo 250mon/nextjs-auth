@@ -76,14 +76,14 @@ This project includes Docker configuration for easy deployment.
 ### Prerequisites
 
 - Docker and Docker Compose installed on your system
-- For the `dev` profile, the external `my-shared-proxy-net` Docker network must already exist (`docker network create my-shared-proxy-net`) — this is only for cross-container dev traffic (e.g. `inventory-app-dev` calling this app), not the database
-- For the `prod` profile, the external `edge` Docker network must already exist — this is the shared network created by the `danaul-caddy` reverse proxy stack, which routes traffic to this app directly (there is no nginx or published host port in prod anymore). To try the `prod` profile without a real reverse proxy, see [Testing prod locally without a reverse proxy](#testing-prod-locally-without-a-reverse-proxy)
+- For dev (`docker-compose.dev.yml`), the external `my-shared-proxy-net` Docker network must already exist (`docker network create my-shared-proxy-net`) — this is only for cross-container dev traffic (e.g. `inventory-app-dev` calling this app), not the database
+- For prod (`docker-compose.yml`), the external `edge` Docker network must already exist — this is the shared network created by the `danaul-caddy` reverse proxy stack, which routes traffic to this app directly (there is no nginx or published host port in prod anymore). To try prod without a real reverse proxy, see [Testing prod locally without a reverse proxy](#testing-prod-locally-without-a-reverse-proxy)
 
 ### Quick Start
 
 1. **Set up environment variables**:
 
-   The `dev` and `prod` Compose profiles load from **separate** example files, since several variables genuinely differ between them (base path, CORS origins, database):
+   Dev and prod load from **separate** example files, since several variables genuinely differ between them (base path, CORS origins, database):
 
    ```bash
    # dev
@@ -93,17 +93,17 @@ This project includes Docker configuration for easy deployment.
    cp .env.example .env
    ```
 
-   Each host only ever runs one profile against its own `.env`, so there's no conflict — see [Environment Variables](#environment-variables) below for what's in each.
+   Each host only ever runs one of the two against its own `.env`, so there's no conflict — see [Environment Variables](#environment-variables) below for what's in each.
 
 2. **Build and start the application**:
    ```bash
    # For development (hot reload, published on APP_PORT, joins my-shared-proxy-net,
-   # and spins up its own local `postgres` dev-profile container)
-   docker-compose --profile dev up -d
+   # and spins up its own local `postgres` container) — docker-compose.dev.yml
+   docker compose -f docker-compose.dev.yml up -d
 
    # For production (standalone build, joins the danaul-caddy edge network,
-   # connects to the shared prod Postgres instance via POSTGRES_URL)
-   docker-compose --profile prod up -d
+   # connects to the shared prod Postgres instance via POSTGRES_URL) — docker-compose.yml
+   docker compose up -d
    ```
 
 3. **Database is initialized automatically** — no manual step needed:
@@ -116,24 +116,24 @@ This project includes Docker configuration for easy deployment.
 
 ### Docker Commands
 
-- **Start development environment**: `docker-compose --profile dev up -d`
-- **Start production environment**: `docker-compose --profile prod up -d`
-- **Stop application**: `docker-compose --profile dev down` or `docker-compose --profile prod down`
-- **View logs**: `docker-compose --profile dev logs -f` or `docker-compose --profile prod logs -f`
-- **Rebuild after changes**: `docker-compose --profile dev up -d --build` or `docker-compose --profile prod up -d --build`
+- **Start development environment**: `docker compose -f docker-compose.dev.yml up -d`
+- **Start production environment**: `docker compose up -d`
+- **Stop application**: `docker compose -f docker-compose.dev.yml down` or `docker compose down`
+- **View logs**: `docker compose -f docker-compose.dev.yml logs -f` or `docker compose logs -f`
+- **Rebuild after changes**: `docker compose -f docker-compose.dev.yml up -d --build` or `docker compose up -d --build`
 
 ### Environment Variables
 
-The `dev` and `prod` Compose profiles load from separate example files (`dev.env.example` / `.env.example`, see Quick Start above) — copy whichever matches the profile you're running to `.env`. A few variables also have profile-specific fallback defaults set directly in `docker-compose.yml`, used when the variable isn't set in `.env`.
+Dev and prod load from separate example files (`dev.env.example` / `.env.example`, see Quick Start above) — copy whichever matches the environment you're running to `.env`. A few variables also have environment-specific fallback defaults set directly in the corresponding compose file (`docker-compose.dev.yml` for dev, `docker-compose.yml` for prod), used when the variable isn't set in `.env`.
 
 - `POSTGRES_URL` - **Required for `prod`** - Full PostgreSQL connection string for the shared prod instance (e.g., `postgresql://user:password@host:port/database`). Not read for `dev` — see below
 - `JWT_SECRET` - Secret for signing API access tokens (⚠️ CHANGE IN PRODUCTION!)
 - `JWT_REFRESH_SECRET` - Secret for signing API refresh tokens (⚠️ CHANGE IN PRODUCTION!)
 - `AUTH_SECRET` - NextAuth secret used to sign the session JWT (⚠️ CHANGE IN PRODUCTION!)
 - `AUTH_TRUST_HOST` - Needed by NextAuth when the app sits behind a reverse proxy (e.g. danaul-caddy) so it trusts the forwarded host/protocol
-- `ALLOWED_ORIGINS` - CORS allowed origins, comma-separated — genuinely different per profile (e.g. `http://localhost:13203` for `dev`, your real domain(s) for `prod`; see [CORS_CONFIGURATION.md](./CORS_CONFIGURATION.md))
-- `NEXT_PUBLIC_BASE_PATH` - Mounts the whole app (pages and API routes) under a subpath, e.g. `/auth`, for reverse-proxy deployments. Read at both build time and runtime. Defaults to `/auth` for the `prod` profile; unset (root path) for `dev`
-- `APP_PORT` - Host port published for the `dev` profile only (default: `13203`). The `prod` profile no longer publishes a host port — see Networking below
+- `ALLOWED_ORIGINS` - CORS allowed origins, comma-separated — genuinely different between dev and prod (e.g. `http://localhost:13203` for dev, your real domain(s) for prod; see [CORS_CONFIGURATION.md](./CORS_CONFIGURATION.md))
+- `NEXT_PUBLIC_BASE_PATH` - Mounts the whole app (pages and API routes) under a subpath, e.g. `/auth`, for reverse-proxy deployments. Read at both build time and runtime. Defaults to `/auth` for prod; unset (root path) for dev
+- `APP_PORT` - Host port published in dev only (default: `13203`). Prod no longer publishes a host port — see Networking below
 - `NODE_ENV` - Node environment (defaults to `development` for `dev`, `production` for `prod`)
 - `DATABASE_SSL` - Whether to require SSL for the Postgres connection. Hardcoded to `false` for `dev` (local Postgres, no SSL); configurable for `prod` (default: `false`)
 - `DEBUG` - Debug logging, e.g. `postgres:*` to log DB queries (defaults to `postgres:*` for `dev`, `false` for `prod`)
@@ -142,7 +142,7 @@ The `dev` and `prod` Compose profiles load from separate example files (`dev.env
 
 #### Local dev database
 
-The `dev` profile no longer shares the prod Postgres instance. `docker-compose.yml` defines a `postgres` service (also scoped to the `dev` profile) that `auth-app-dev` depends on and connects to at `postgres:5432`; `POSTGRES_URL` and `DATABASE_SSL` are constructed directly in `docker-compose.yml` for this profile rather than read from `.env`. Optional overrides, with defaults matching the `postgres` service itself:
+Dev no longer shares the prod Postgres instance. `docker-compose.dev.yml` defines a `postgres` service that `auth-app-dev` depends on and connects to at `postgres:5432`; `POSTGRES_URL` and `DATABASE_SSL` are constructed directly in `docker-compose.dev.yml` rather than read from `.env`. Optional overrides, with defaults matching the `postgres` service itself:
 
 - `DEV_POSTGRES_USER` (default: `postgres`)
 - `DEV_POSTGRES_PASSWORD` (default: `postgres`)
@@ -152,10 +152,10 @@ The `dev` profile no longer shares the prod Postgres instance. `docker-compose.y
 
 ### Networking
 
-- **Service names**: The Compose services are `auth-app-dev` (image `lambki/auth-app-dev`) and `auth-app-prod` (image `lambki/auth-app-prod`), each running in a like-named container. These were renamed from the earlier `app-dev` / `app-prod` names.
-- **Development (`dev` profile)**: Publishes the app on the host at `${APP_PORT:-13203}` and joins both the external `my-shared-proxy-net` network (for cross-app dev traffic, e.g. `inventory-app-dev` calling this app) and the project's own default network (to reach the `postgres` dev-profile service by name).
-- **Production (`prod` profile)**: Does **not** publish a host port or join `my-shared-proxy-net`. It only `expose`s port 3000 internally and joins the external `edge` network (the shared network created by the `danaul-caddy` stack) under the stable alias `auth-app-prod`. `danaul-caddy` reverse-proxies directly to `auth-app-prod:3000` over that network — nginx is no longer part of the request path. It connects to the shared prod Postgres instance via `POSTGRES_URL`, not over `edge`.
-- Both `my-shared-proxy-net` and `edge` are declared as `external: true` and must already exist before starting the corresponding profile.
+- **Service names**: The Compose services are `auth-app-dev` (image `lambki/auth-app-dev`, defined in `docker-compose.dev.yml`) and `auth-app-prod` (image `lambki/auth-app-prod`, defined in `docker-compose.yml`), each running in a like-named container. These were renamed from the earlier `app-dev` / `app-prod` names.
+- **Development** (`docker-compose.dev.yml`): Publishes the app on the host at `${APP_PORT:-13203}` and joins both the external `my-shared-proxy-net` network (for cross-app dev traffic, e.g. `inventory-app-dev` calling this app) and the project's own default network (to reach the `postgres` service by name).
+- **Production** (`docker-compose.yml`): Does **not** publish a host port or join `my-shared-proxy-net`. It only `expose`s port 3000 internally and joins the external `edge` network (the shared network created by the `danaul-caddy` stack) under the stable alias `auth-app-prod`. `danaul-caddy` reverse-proxies directly to `auth-app-prod:3000` over that network — nginx is no longer part of the request path. It connects to the shared prod Postgres instance via `POSTGRES_URL`, not over `edge`.
+- Both `my-shared-proxy-net` and `edge` are declared as `external: true` and must already exist before starting the corresponding compose file.
 - Other apps that call this service (e.g. the sibling `nextjs-inventory` app via its `AUTH_API_BASE_URL`) reach it the same way — over the shared `edge` network at `auth-app-prod:3000` in production.
 
 ### Production Deployment
@@ -168,12 +168,12 @@ For production, make sure to:
 4. Ensure your external PostgreSQL database has SSL/TLS enabled
 5. Set up proper backup strategies for your external PostgreSQL database
 6. Use a secure connection string format: `postgresql://user:password@host:port/database?sslmode=require`
-7. Make sure the external `edge` Docker network (created by the `danaul-caddy` stack) exists before running `docker-compose --profile prod up -d`, and that `danaul-caddy` is configured to route to the `auth-app-prod` alias on port 3000
+7. Make sure the external `edge` Docker network (created by the `danaul-caddy` stack) exists before running `docker compose up -d`, and that `danaul-caddy` is configured to route to the `auth-app-prod` alias on port 3000
 8. Set `BOOTSTRAP_ADMIN_EMAIL` and `BOOTSTRAP_ADMIN_PASSWORD` before the first ever startup against a fresh database, so you have real admin credentials from day one instead of relying on `GET /seed`'s sample account (see [Database Seeding](#database-seeding) — that route is not safe to use in prod). Both env vars can be removed again afterward; `scripts/bootstrap-admin.mjs` only acts when no super admin exists yet
 
 ### Testing prod locally without a reverse proxy
 
-You don't need a real `danaul-caddy`/Caddy instance to try the `prod` profile locally. Create a `docker-compose.override.yml` (gitignored — Compose merges it in automatically, no `-f` flag needed) that maps `auth-app-prod` to a host port directly and points it at a disposable Postgres container instead of the shared prod instance. One-time setup: `docker network create edge` (it just needs to exist; no actual Caddy required). See `CLAUDE.md`'s Docker section for the full override example.
+You don't need a real `danaul-caddy`/Caddy instance to try prod locally. Create a `docker-compose.override.yml` (gitignored — Compose merges it in automatically on top of `docker-compose.yml` whenever no `-f` flag is passed) that maps `auth-app-prod` to a host port directly and points it at a disposable Postgres container instead of the shared prod instance. One-time setup: `docker network create edge` (it just needs to exist; no actual Caddy required). See `CLAUDE.md`'s Docker section for the full override example.
 
 ## Database Seeding
 

@@ -1,65 +1,4 @@
 services:
-  auth-app-dev:
-    image: lambki/auth-app-dev:latest
-    container_name: auth-app-dev
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: dev
-      args:
-        - NEXT_PUBLIC_BASE_PATH=${NEXT_PUBLIC_BASE_PATH}
-    restart: unless-stopped
-    # Seed the dev DB (schema + sample users) if it has no tables yet, then start the dev server
-    command: sh -c "node scripts/docker-auto-seed.mjs && pnpm dev"
-    ports:
-      - "${APP_PORT:-13203}:3000"
-    networks:
-      - my-shared-proxy-net
-      - default
-    depends_on:
-      postgres:
-        condition: service_healthy
-    # Mount source code as volume for hot reload
-    volumes:
-      - .:/app
-      - /app/node_modules
-      - /app/.next
-    # Loads all variables from .env.development into the container
-    env_file:
-      - .env
-    environment:
-      # Node environment (defaults to development if not set)
-      NODE_ENV: ${NODE_ENV:-development}
-      NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH}
-      # Local dev-only database (`postgres` service below) — independent of
-      # POSTGRES_URL, which auth-app-prod uses for the shared prod instance.
-      POSTGRES_URL: postgresql://${DEV_POSTGRES_USER:-postgres}:${DEV_POSTGRES_PASSWORD:-postgres}@postgres:5432/${DEV_POSTGRES_DB:-danaul_auth}
-      DATABASE_SSL: "false"
-      DEBUG: ${DEBUG:-postgres:*}
-      # Enable polling for file watching (required for hot reload in Docker)
-      WATCHPACK_POLLING: ${WATCHPACK_POLLING:-true}
-      CHOKIDAR_USEPOLLING: ${CHOKIDAR_USEPOLLING:-true}
-    profiles:
-      - dev
-
-  postgres:
-    image: postgres:18-alpine
-    container_name: auth-postgres-dev
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${DEV_POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${DEV_POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${DEV_POSTGRES_DB:-danaul_auth}
-    volumes:
-      - postgres_dev_data:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DEV_POSTGRES_USER:-postgres} -d ${DEV_POSTGRES_DB:-danaul_auth}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    profiles:
-      - dev
-
   auth-app-prod:
     image: lambki/auth-app-prod:latest
     container_name: auth-app-prod
@@ -91,14 +30,7 @@ services:
       # (forced to change their password on first login). See scripts/bootstrap-admin.mjs.
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
-    profiles:
-      - prod
 
 networks:
-  my-shared-proxy-net:
-    external: true
   edge:
     external: true
-
-volumes:
-  postgres_dev_data:

@@ -173,7 +173,7 @@ For production, make sure to:
 
 ### Testing prod locally without a reverse proxy
 
-You don't need a real `danaul-caddy`/Caddy instance to try prod locally. Create a `docker-compose.override.yml` (gitignored — Compose merges it in automatically on top of `docker-compose.yml` whenever no `-f` flag is passed) that maps `auth-app-prod` to a host port directly and points it at a disposable Postgres container instead of the shared prod instance. One-time setup: `docker network create edge` (it just needs to exist; no actual Caddy required). See `CLAUDE.md`'s Docker section for the full override example.
+You don't need a real `danaul-caddy`/Caddy instance to try prod locally. Create a `docker-compose.override.yml` (gitignored — Compose merges it in automatically on top of `docker-compose.yml` whenever no `-f` flag is passed) that maps `auth-app-prod` to a host port directly; by default it still uses whatever `POSTGRES_URL` is in `.env`. If you don't already have a Postgres to point it at, opt in to a disposable one with `docker-compose.testdb.yml` (also gitignored, added explicitly via `-f` — never auto-merged). One-time setup: `docker network create edge` (it just needs to exist; no actual Caddy required). See `CLAUDE.md`'s Docker section for the full example and commands.
 
 ## Database Seeding
 

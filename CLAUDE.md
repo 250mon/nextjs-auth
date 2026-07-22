@@ -95,12 +95,19 @@ pnpm 10/11's supply-chain policy blocks native install scripts (`sharp`, `unrs-r
 
 `docker-compose.override.yml` (gitignored, not committed — create it yourself if missing) layers on top of `docker-compose.yml` automatically whenever no `-f` flag is passed:
 - Maps `auth-app-prod` to `localhost:${PROD_TEST_PORT:-3000}` directly (bypassing the need for Caddy).
-- Adds a disposable `postgres-prod-test` service with no named volume — its data is gone once the container is removed — and points `auth-app-prod`'s `POSTGRES_URL` at it instead of the real prod database.
 - Supplies throwaway `JWT_SECRET`/`JWT_REFRESH_SECRET` if `.env` doesn't define them (only the real prod deployment needs to set those for real).
+- Leaves `POSTGRES_URL` as whatever `.env` already has — bring your own already-running Postgres by default.
 
-One-time setup: `docker network create edge` (just needs to exist — no actual Caddy required for local testing). Then:
+`docker-compose.testdb.yml` is a separate **opt-in** file (also gitignored) that adds a disposable `postgres-prod-test` service — no named volume, so its data is gone once the container is removed — and repoints `auth-app-prod`'s `POSTGRES_URL` at it. It's never auto-merged; add it explicitly with `-f` only when you don't already have a Postgres to test against.
+
+One-time setup: `docker network create edge` (just needs to exist — no actual Caddy required for local testing). Then, without the disposable DB (bring your own via `.env`'s `POSTGRES_URL`):
 ```bash
 docker compose up -d --build
+docker compose down
+```
+Or with the disposable DB:
+```bash
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.testdb.yml up -d --build
 curl http://localhost:3000/seed   # or set BOOTSTRAP_ADMIN_EMAIL/PASSWORD instead
-docker compose down -v   # -v also wipes the disposable DB's volume
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.testdb.yml down -v   # -v also wipes the disposable DB's volume
 ```

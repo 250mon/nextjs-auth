@@ -37,8 +37,9 @@ yarn-error.log*
 # vercel
 .vercel
 
-# local-only compose override (see docker-compose.override.yml)
+# local-only compose override + opt-in test DB (see docker-compose.override.yml)
 docker-compose.override.yml
+docker-compose.testdb.yml
 
 # typescript
 *.tsbuildinfo

@@ -32,16 +32,42 @@ export default async function middleware(req: NextRequest) {
   const isPublicRoute = publicRoutes.includes(path);
 
   // 3. Get the NextAuth session token
-  const token = await getToken({ req, secret: process.env.AUTH_SECRET });
+  // Behind a reverse proxy (e.g. Caddy) that terminates TLS, the connection to
+  // this container is plain HTTP, so req.nextUrl.protocol is "http:" even
+  // though the browser is on https. Auth.js core respects AUTH_TRUST_HOST and
+  // reads x-forwarded-proto to detect https, which is what determines whether
+  // it names the session cookie with the `__Secure-` prefix. getToken() does
+  // NOT do this detection itself (its secureCookie param defaults to false),
+  // so it must be told explicitly or it'll look for the wrong cookie name and
+  // never find a session set behind TLS termination.
+  const isSecure =
+    req.headers.get("x-forwarded-proto") === "https" ||
+    req.nextUrl.protocol === "https:";
+  const token = await getToken({
+    req,
+    secret: process.env.AUTH_SECRET,
+    secureCookie: isSecure,
+  });
+
+  // Same reverse-proxy blind spot applies to building redirect URLs below:
+  // req.nextUrl's origin reflects the http connection Caddy makes to this
+  // container, not the https the browser actually used. Rebuild the origin
+  // from the forwarded headers so redirect Location headers come out https.
+  const forwardedHost = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+  const externalUrl = new URL(req.nextUrl.toString());
+  externalUrl.protocol = isSecure ? "https:" : "http:";
+  if (forwardedHost) {
+    externalUrl.host = forwardedHost;
+  }
 
   // 4. Redirect to /login if the user is not authenticated
   if (isProtectedRoute && !token) {
-    return NextResponse.redirect(createBasePathRelativeUrl("/login", req.nextUrl));
+    return NextResponse.redirect(createBasePathRelativeUrl("/login", externalUrl));
   }
 
   // 5. Redirect to /dashboard if the user is authenticated
   if (isPublicRoute && token && !req.nextUrl.pathname.startsWith("/dashboard")) {
-    return NextResponse.redirect(createBasePathRelativeUrl("/dashboard", req.nextUrl));
+    return NextResponse.redirect(createBasePathRelativeUrl("/dashboard", externalUrl));
   }
 
   return NextResponse.next();

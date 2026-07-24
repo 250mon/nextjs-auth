@@ -11,8 +11,8 @@ npm start          # Start production server
 npm run lint       # ESLint
 
 # Docker
-docker compose -f docker-compose.dev.yml up -d   # Dev with hot reload
-docker compose up -d                             # Production standalone
+docker compose -f docker-compose.dev.yml --env-file dev.env up -d   # Dev with hot reload
+docker compose up -d                                                # Production standalone
 ```
 
 ## Architecture Overview
@@ -80,6 +80,8 @@ The app can be mounted at a custom path via `NEXT_PUBLIC_BASE_PATH` (e.g., `/aut
 Required: `POSTGRES_URL`, `AUTH_SECRET`, `JWT_SECRET`, `JWT_REFRESH_SECRET`
 
 Optional: `NEXT_PUBLIC_BASE_PATH`, `ALLOWED_ORIGINS` (comma-separated), `DATABASE_SSL` (true/false/allow), `APP_PORT` (Docker host port), `AUTH_TRUST_HOST`, `BOOTSTRAP_ADMIN_EMAIL` + `BOOTSTRAP_ADMIN_PASSWORD` (prod only — auto-creates the first super admin on startup if none exists yet; see `scripts/bootstrap-admin.mjs`)
+
+Dev and prod each keep their own env file rather than sharing one: `docker-compose.yml` (prod) reads `.env` (`cp .env.example .env`), `docker-compose.dev.yml` (dev) reads `dev.env` (`cp dev.env.example dev.env`) — both gitignored, both can sit in the repo root at the same time. `env_file:` on the `auth-app-dev` service loads `dev.env` into the container, but Compose's own `${VAR}` substitution *within* `docker-compose.dev.yml` (e.g. `NEXT_PUBLIC_BASE_PATH`, `APP_PORT`) is a separate mechanism that defaults to reading `.env` from the working directory — so dev commands must always pass `--env-file dev.env` explicitly, or they'll silently pick up values from a prod `.env` sitting in the same directory instead.
 
 ## Docker
 

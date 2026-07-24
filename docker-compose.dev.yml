@@ -24,9 +24,11 @@ services:
       - .:/app
       - /app/node_modules
       - /app/.next
-    # Loads all variables from .env.development into the container
+    # Loads all variables into the container. Also pass --env-file dev.env on the CLI
+    # (see CLAUDE.md) so ${VAR} substitution in this file itself reads from dev.env too,
+    # not a leftover prod .env sitting in the same directory.
     env_file:
-      - .env
+      - dev.env
     environment:
       # Node environment (defaults to development if not set)
       NODE_ENV: ${NODE_ENV:-development}

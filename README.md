@@ -83,23 +83,25 @@ This project includes Docker configuration for easy deployment.
 
 1. **Set up environment variables**:
 
-   Dev and prod load from **separate** example files, since several variables genuinely differ between them (base path, CORS origins, database):
+   Dev and prod each keep their own env file, since several variables genuinely differ between them (base path, CORS origins, database) — both can sit in the repo root at the same time, no need to swap one for the other:
 
    ```bash
-   # dev
-   cp dev.env.example .env
+   # dev — read by docker-compose.dev.yml
+   cp dev.env.example dev.env
 
-   # prod
+   # prod — read by docker-compose.yml
    cp .env.example .env
    ```
 
-   Each host only ever runs one of the two against its own `.env`, so there's no conflict — see [Environment Variables](#environment-variables) below for what's in each.
+   See [Environment Variables](#environment-variables) below for what's in each.
 
 2. **Build and start the application**:
    ```bash
    # For development (hot reload, published on APP_PORT, joins my-shared-proxy-net,
    # and spins up its own local `postgres` container) — docker-compose.dev.yml
-   docker compose -f docker-compose.dev.yml up -d
+   # --env-file dev.env is required: without it, Compose falls back to reading
+   # .env (the prod file) for variable substitution if one happens to exist here.
+   docker compose -f docker-compose.dev.yml --env-file dev.env up -d
 
    # For production (standalone build, joins the danaul-caddy edge network,
    # connects to the shared prod Postgres instance via POSTGRES_URL) — docker-compose.yml
@@ -116,15 +118,15 @@ This project includes Docker configuration for easy deployment.
 
 ### Docker Commands
 
-- **Start development environment**: `docker compose -f docker-compose.dev.yml up -d`
+- **Start development environment**: `docker compose -f docker-compose.dev.yml --env-file dev.env up -d`
 - **Start production environment**: `docker compose up -d`
-- **Stop application**: `docker compose -f docker-compose.dev.yml down` or `docker compose down`
-- **View logs**: `docker compose -f docker-compose.dev.yml logs -f` or `docker compose logs -f`
-- **Rebuild after changes**: `docker compose -f docker-compose.dev.yml up -d --build` or `docker compose up -d --build`
+- **Stop application**: `docker compose -f docker-compose.dev.yml --env-file dev.env down` or `docker compose down`
+- **View logs**: `docker compose -f docker-compose.dev.yml --env-file dev.env logs -f` or `docker compose logs -f`
+- **Rebuild after changes**: `docker compose -f docker-compose.dev.yml --env-file dev.env up -d --build` or `docker compose up -d --build`
 
 ### Environment Variables
 
-Dev and prod load from separate example files (`dev.env.example` / `.env.example`, see Quick Start above) — copy whichever matches the environment you're running to `.env`. A few variables also have environment-specific fallback defaults set directly in the corresponding compose file (`docker-compose.dev.yml` for dev, `docker-compose.yml` for prod), used when the variable isn't set in `.env`.
+Dev and prod load from separate files: `dev.env` for `docker-compose.dev.yml`, `.env` for `docker-compose.yml` (copy the matching `*.env.example` template, see Quick Start above). A few variables also have environment-specific fallback defaults set directly in the corresponding compose file, used when the variable isn't set in the env file.
 
 - `POSTGRES_URL` - **Required for `prod`** - Full PostgreSQL connection string for the shared prod instance (e.g., `postgresql://user:password@host:port/database`). Not read for `dev` — see below
 - `JWT_SECRET` - Secret for signing API access tokens (⚠️ CHANGE IN PRODUCTION!)
@@ -148,7 +150,7 @@ Dev no longer shares the prod Postgres instance. `docker-compose.dev.yml` define
 - `DEV_POSTGRES_PASSWORD` (default: `postgres`)
 - `DEV_POSTGRES_DB` (default: `danaul_auth`)
 
-**Note**: Next.js also reads `.env` automatically outside of Docker (e.g. `pnpm dev`), so the same file can be reused for non-Docker local development.
+**Note**: `dev.env` is only read by `docker compose --env-file dev.env`. Non-Docker local development (`pnpm dev`) uses Next.js's own env file convention (`.env`, `.env.local`, `.env.development`, etc.) instead — `dev.env` isn't picked up automatically there.
 
 ### Networking
 

@@ -6,6 +6,7 @@ import { basePath, createBasePathRelativeUrl } from "@/app/lib/utils";
 // 1. Specify protected and public routes
 const protectedRoutes = ["/dashboard"];
 const publicRoutes = ["/login", "/register", "/"];
+const CHANGE_PASSWORD_ROUTE = "/dashboard/change-password";
 
 export default async function middleware(req: NextRequest) {
   // 2. Check if the current route is protected or public
@@ -67,7 +68,14 @@ export default async function middleware(req: NextRequest) {
 
   // 5. Redirect to /dashboard if the user is authenticated
   if (isPublicRoute && token && !req.nextUrl.pathname.startsWith("/dashboard")) {
-    return NextResponse.redirect(createBasePathRelativeUrl("/dashboard", externalUrl));
+    const destination = token.mustChangePassword ? CHANGE_PASSWORD_ROUTE : "/dashboard";
+    return NextResponse.redirect(createBasePathRelativeUrl(destination, externalUrl));
+  }
+
+  // 6. Force a password change before allowing access to any other protected
+  // route (e.g. a bootstrap-created admin account logging in for the first time).
+  if (isProtectedRoute && token?.mustChangePassword && path !== CHANGE_PASSWORD_ROUTE) {
+    return NextResponse.redirect(createBasePathRelativeUrl(CHANGE_PASSWORD_ROUTE, externalUrl));
   }
 
   return NextResponse.next();

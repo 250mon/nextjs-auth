@@ -47,11 +47,15 @@ export const translations = {
     profileUpdatedSuccessfully: 'Profile updated successfully!',
     passwordChangedSuccessfully: 'Password changed successfully!',
     backToProfile: 'Back to Profile',
-    
+
     // Admin Actions
     admin: 'Admin',
     adminEdit: 'Admin Edit',
     editAsAdmin: 'Edit as Admin',
+
+    // Mandatory Password Change
+    passwordChangeRequired: 'Password Change Required',
+    passwordChangeRequiredDescription: 'For security, you must set a new password before continuing.',
   },
   ko: {
     // Navigation Menu Items  
@@ -90,11 +94,15 @@ export const translations = {
     profileUpdatedSuccessfully: '프로필이 성공적으로 업데이트되었습니다!',
     passwordChangedSuccessfully: '비밀번호가 성공적으로 변경되었습니다!',
     backToProfile: '프로필로 돌아가기',
-    
+
     // Admin Actions
     admin: '관리자',
     adminEdit: '관리자 편집',
     editAsAdmin: '관리자로 편집',
+
+    // Mandatory Password Change
+    passwordChangeRequired: '비밀번호 변경 필요',
+    passwordChangeRequiredDescription: '보안을 위해 계속하기 전에 새 비밀번호를 설정해야 합니다.',
   }
 } as const;
 

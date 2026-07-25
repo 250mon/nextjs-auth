@@ -5,6 +5,7 @@ import { adaptZodError } from "@/app/lib/zod-error-adaptor";
 import bcrypt from "bcryptjs";
 import { query } from "@/app/lib/db";
 import { getCurrentUser } from "@/app/lib/dal";
+import { updateSession } from "@/auth.config";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -186,13 +187,17 @@ export async function changePassword(
     // Hash new password
     const hashedNewPassword = await bcrypt.hash(validatedFields.data.newPassword, 10);
 
-    // Update password in database
+    // Update password in database and clear the must-change-password flag
     await query(
-      `UPDATE users 
-       SET password = $1, updated_at = NOW()
+      `UPDATE users
+       SET password = $1, must_change_password = false, updated_at = NOW()
        WHERE id = $2`,
       [hashedNewPassword, userId]
     );
+
+    // Refresh the session cookie so a previously forced password change
+    // doesn't keep redirecting the user back to the change-password page.
+    await updateSession({ user: { mustChangePassword: false } });
 
     return {
       message: 'Password changed successfully.',
@@ -258,13 +263,17 @@ export async function updateProfileServer(formData: FormData) {
     );
 
     // Revalidate the profile page
-    revalidatePath(`/profile/${userSlug}`);
+    revalidatePath(`/dashboard/profile/${userSlug}`);
     revalidatePath('/dashboard');
     
     // Redirect to profile page with success message
-    redirect(`/profile/${userSlug}?updated=profile`);
+    redirect(`/dashboard/profile/${userSlug}?updated=profile`);
 
   } catch (error) {
+    // redirect() throws internally to perform the navigation — let it propagate.
+    if (error instanceof Error && error.message === 'NEXT_REDIRECT') {
+      throw error;
+    }
     console.error('Profile update error:', error);
     throw new Error('Failed to update profile');
   }
@@ -316,21 +325,29 @@ export async function changePasswordServer(formData: FormData) {
     // Hash new password
     const hashedNewPassword = await bcrypt.hash(validatedFields.data.newPassword, 10);
 
-    // Update password in database
+    // Update password in database and clear the must-change-password flag
     await query(
-      `UPDATE users 
-       SET password = $1, updated_at = NOW()
+      `UPDATE users
+       SET password = $1, must_change_password = false, updated_at = NOW()
        WHERE id = $2`,
       [hashedNewPassword, userId]
     );
 
+    // Refresh the session cookie so a previously forced password change
+    // doesn't keep redirecting the user back to the change-password page.
+    await updateSession({ user: { mustChangePassword: false } });
+
     // Revalidate the profile page
-    revalidatePath(`/profile/${userSlug}`);
-    
+    revalidatePath(`/dashboard/profile/${userSlug}`);
+
     // Redirect to profile page with success message
-    redirect(`/profile/${userSlug}?updated=password`);
+    redirect(`/dashboard/profile/${userSlug}?updated=password`);
 
   } catch (error) {
+    // redirect() throws internally to perform the navigation — let it propagate.
+    if (error instanceof Error && error.message === 'NEXT_REDIRECT') {
+      throw error;
+    }
     console.error('Password change error:', error);
     throw new Error('Failed to change password');
   }

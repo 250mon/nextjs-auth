@@ -28,21 +28,30 @@ async function getUser(email: string): Promise<User | undefined> {
   }
 }
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const { handlers, auth, signIn, signOut, unstable_update: updateSession } = NextAuth({
   pages: {
     signIn: "/login",
   },
   callbacks: {
-    // Ensure user ID is passed from JWT to session
-    jwt({ token, user }) {
+    // Ensure user ID and must-change-password flag are passed from JWT to session
+    jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
+        token.mustChangePassword = user.must_change_password ?? false;
+      }
+      // Allows updateSession({ user: { mustChangePassword: false } }) to refresh
+      // the session cookie in place after a password change, without a re-login.
+      if (trigger === "update" && session?.user && "mustChangePassword" in session.user) {
+        token.mustChangePassword = session.user.mustChangePassword as boolean;
       }
       return token;
     },
     session({ session, token }) {
       if (token.id && session.user) {
         session.user.id = token.id as string;
+      }
+      if (session.user) {
+        session.user.mustChangePassword = token.mustChangePassword ?? false;
       }
       return session;
     },

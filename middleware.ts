@@ -51,15 +51,19 @@ export default async function middleware(req: NextRequest) {
   });
 
   // Same reverse-proxy blind spot applies to building redirect URLs below:
-  // req.nextUrl's origin reflects the http connection Caddy makes to this
-  // container, not the https the browser actually used. Rebuild the origin
-  // from the forwarded headers so redirect Location headers come out https.
+  // req.nextUrl's origin reflects the internal connection Caddy makes to this
+  // container (host:3000), not the https origin the browser actually used.
+  // Rebuild the origin from the forwarded headers so redirect Location headers
+  // come out clean. Note: assigning to url.host/url.hostname does NOT clear a
+  // pre-existing port when the new value has none (verified: `new
+  // URL("https://internal:3000/x").host = "public.example"` stays ":3000"),
+  // so mutating req.nextUrl in place silently leaked the internal port into
+  // every redirect built this way. Constructing a fresh URL avoids that.
   const forwardedHost = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
-  const externalUrl = new URL(req.nextUrl.toString());
-  externalUrl.protocol = isSecure ? "https:" : "http:";
-  if (forwardedHost) {
-    externalUrl.host = forwardedHost;
-  }
+  const protocol = isSecure ? "https:" : "http:";
+  const externalUrl = new URL(
+    `${protocol}//${forwardedHost ?? req.nextUrl.host}${req.nextUrl.pathname}${req.nextUrl.search}`,
+  );
 
   // 4. Redirect to /login if the user is not authenticated
   if (isProtectedRoute && !token) {

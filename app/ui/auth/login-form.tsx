@@ -8,17 +8,25 @@ import {
 } from "@heroicons/react/24/outline";
 import { ArrowRightIcon } from "@heroicons/react/20/solid";
 import { Button } from "@/app/ui/button";
-import { useActionState } from "react";
-import { customSignIn } from "@/app/actions/auth";
-import { useSearchParams } from "next/navigation";
+import { useActionState, useEffect } from "react";
+import { customSignIn, type SignInState } from "@/app/actions/auth";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function LoginForm() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
-  const [errorMessage, formAction] = useActionState(
+  const [state, formAction] = useActionState<SignInState, FormData>(
     customSignIn,
-    undefined,
+    {},
   );
+
+  useEffect(() => {
+    if (state.success) {
+      router.push(callbackUrl);
+    }
+  }, [state, callbackUrl, router]);
+
   return (
     <form action={formAction} className="space-y-3">
       <div className="flex-1 rounded-lg bg-gray-50 px-6 pb-4 pt-8">
@@ -71,10 +79,10 @@ export default function LoginForm() {
           Log in <ArrowRightIcon className="ml-auto h-5 w-5 text-gray-50" />
         </Button>
         <div className="flex h-8 items-end space-x-1">
-          {errorMessage && (
+          {state.error && (
             <>
               <ExclamationCircleIcon className="h-5 w-5 text-red-500" />
-              <p className="text-sm text-red-500">{errorMessage}</p>
+              <p className="text-sm text-red-500">{state.error}</p>
             </>
           )}
         </div>

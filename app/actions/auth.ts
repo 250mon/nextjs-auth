@@ -50,20 +50,31 @@ export async function customSignOut({
   await signOut({ redirectTo });
 }
 
+export type SignInState = {
+  error?: string;
+  success?: boolean;
+};
+
 export async function customSignIn(
-  prevState: string | undefined,
+  prevState: SignInState,
   formData: FormData,
-) {
+): Promise<SignInState> {
   try {
-    await signIn("credentials", formData);
+    // redirect: false stops next-auth from calling next/navigation's redirect()
+    // itself, which on this deployment triggers a Next.js standalone-server
+    // self-fetch (http://localhost:3000/...) to stream the next page. Under
+    // load that self-fetch can time out (ETIMEDOUT) and leave the user stuck
+    // on /login. Returning success and letting the client navigate avoids it.
+    await signIn("credentials", { ...Object.fromEntries(formData), redirect: false });
+    return { success: true };
   } catch (error) {
     // Handle authentication errors
     if (error && typeof error === 'object' && 'type' in error) {
       switch (error.type) {
-        case "CredentialsSignIn":
-          return "Invalid email or password";
+        case "CredentialsSignin":
+          return { error: "Invalid email or password" };
         default:
-          return "Something went wrong, Please try again.";
+          return { error: "Something went wrong, Please try again." };
       }
     }
     throw error;

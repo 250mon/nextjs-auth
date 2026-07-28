@@ -31,7 +31,7 @@ const users = [
   {
     id: "410544b2-4001-4271-9855-fec4b6a6442a",
     name: "User",
-    email: "user@nextmail.com",
+    email: "user@danaul.com",
     password: "123456",
     isadmin: false,
     is_super_admin: false,
@@ -41,7 +41,7 @@ const users = [
   {
     id: "410544b2-4001-4271-9855-fec4b6a6442b",
     name: "Admin",
-    email: "admin@danaul.ai",
+    email: "admin@danaul.com",
     password: "123456",
     isadmin: true,
     is_super_admin: true,
@@ -51,21 +51,25 @@ const users = [
 ];
 
 async function main() {
-  const { rows } = await pool.query("SELECT to_regclass('public.users') AS exists");
+  const { rows } = await pool.query(
+    "SELECT to_regclass('public.users') AS exists",
+  );
   if (rows[0].exists) {
     console.log("[auto-seed] users table already exists, skipping.");
     await pool.end();
     return;
   }
 
-  console.log("[auto-seed] No tables found — creating schema and sample data...");
+  console.log(
+    "[auto-seed] No tables found — creating schema and sample data...",
+  );
 
   await ensureSchema(pool);
 
   for (const company of companies) {
     await pool.query(
       `INSERT INTO companies (id, name, description) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
-      [company.id, company.name, company.description]
+      [company.id, company.name, company.description],
     );
   }
 
@@ -75,7 +79,16 @@ async function main() {
       `INSERT INTO users (id, name, email, password, slug, isadmin, is_super_admin, company_id, active)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)
        ON CONFLICT (id) DO NOTHING`,
-      [user.id, user.name, user.email, hashedPassword, user.slug, user.isadmin, user.is_super_admin, user.company_id]
+      [
+        user.id,
+        user.name,
+        user.email,
+        hashedPassword,
+        user.slug,
+        user.isadmin,
+        user.is_super_admin,
+        user.company_id,
+      ],
     );
   }
 

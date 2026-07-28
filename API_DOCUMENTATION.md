@@ -86,7 +86,8 @@ Authenticate a user and receive access and refresh tokens.
         "id": "company-id",
         "name": "Acme Corp",
         "description": "Company description"
-      }
+      },
+      "must_change_password": false
     },
     "tokens": {
       "accessToken": "jwt-access-token",
@@ -97,7 +98,7 @@ Authenticate a user and receive access and refresh tokens.
 }
 ```
 
-**Note:** The `company` field will be `null` if the user is not associated with a company.
+**Note:** The `company` field will be `null` if the user is not associated with a company. If `must_change_password` is `true`, the client should prompt for a password change (via `PUT /users/me/password`) before allowing access to the rest of the app — this API does not enforce it server-side beyond that field.
 
 **Error Responses:**
 
@@ -109,10 +110,6 @@ Authenticate a user and receive access and refresh tokens.
   "details": {
     "formErrors": [],
     "fieldErrors": {
-      "email": "Invalid email",
-      "password": "Password must be more than 6 characters"
-    },
-    "fieldErrorsAll": {
       "email": ["Invalid email"],
       "password": ["Password must be more than 6 characters"]
     }
@@ -202,12 +199,6 @@ Register a new user account.
   "details": {
     "formErrors": [],
     "fieldErrors": {
-      "name": "Name must be more than 3 characters",
-      "email": "Invalid email",
-      "password": "Password must be more than 6 characters",
-      "confirm_password": "Passwords must match"
-    },
-    "fieldErrorsAll": {
       "name": ["Name must be more than 3 characters"],
       "email": ["Invalid email"],
       "password": ["Password must be more than 6 characters"],
@@ -296,9 +287,6 @@ Refresh an access token using a refresh token.
   "details": {
     "formErrors": [],
     "fieldErrors": {
-      "refreshToken": "Refresh token is required"
-    },
-    "fieldErrorsAll": {
       "refreshToken": ["Refresh token is required"]
     }
   }
@@ -366,9 +354,6 @@ Logout and invalidate refresh token.
   "details": {
     "formErrors": [],
     "fieldErrors": {
-      "refreshToken": "Refresh token is required"
-    },
-    "fieldErrorsAll": {
       "refreshToken": ["Refresh token is required"]
     }
   }
@@ -549,7 +534,7 @@ Authorization: Bearer <access_token>
 
 #### POST /auth/setup
 
-Initialize the API by creating necessary database tables and indexes.
+Idempotently ensures the `api_refresh_tokens` table and its indexes exist, and clears expired refresh tokens. It does **not** create `users`, `companies`, or `invitations` — those are created by the schema bootstrap that runs automatically on container startup (see the main README's Database Seeding section). Calling this is not required for normal setup; it exists as a legacy safety net.
 
 **Response:**
 ```json
@@ -642,8 +627,8 @@ Authorization: Bearer <access_token>
 ```
 
 **Validation Rules:**
-- `name`: Required
-- `email`: Required, valid email format, must be unique
+- `name`: Required (non-empty; no length/format check)
+- `email`: Required (non-empty; no format check), must be unique — returns `409 Conflict` (`{"success": false, "error": "Email already taken"}`) if another user already has it
 
 **Response:**
 ```json
@@ -673,9 +658,46 @@ Authorization: Bearer <access_token>
 
 **Note:** The `company` field will be `null` if the user is not associated with a company.
 
+#### PUT /users/me/password
+
+Change the current user's own password.
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Request Body:**
+```json
+{
+  "currentPassword": "oldpassword123",
+  "newPassword": "newpassword456"
+}
+```
+
+**Validation Rules:**
+- `currentPassword`: Required
+- `newPassword`: Required, 6-100 characters
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Password changed successfully"
+}
+```
+
+**Note:** On success, `must_change_password` is cleared server-side. Web UI sessions refresh their copy of this flag via NextAuth's `updateSession()`; REST API clients should re-login or track the flag themselves.
+
+**Error Responses:**
+
+- **400 Bad Request** - Validation errors (same `details.fieldErrors` shape as above)
+- **401 Unauthorized** - `{"success": false, "error": "Current password is incorrect"}`
+- **404 Not Found** - `{"success": false, "error": "User not found"}`
+
 #### GET /users
 
-Get list of users (Admin only).
+Get list of users (Admin only). **Not company-scoped** — a company admin's token sees users from every company, not just their own. See the note under [Multi-Tenancy Features](#multi-tenancy-features).
 
 **Headers:**
 ```
@@ -723,6 +745,351 @@ Authorization: Bearer <admin_access_token>
 
 **Note:** The `company` field will be `null` if a user is not associated with a company.
 
+#### POST /users
+
+Create a new user (Admin only — company admins and super admins). The new user is created with `must_change_password: true`.
+
+**Headers:**
+```
+Authorization: Bearer <admin_access_token>
+```
+
+**Request Body:**
+```json
+{
+  "name": "New User",
+  "email": "newuser@example.com",
+  "password": "temporary123",
+  "company_id": "company-id",
+  "isadmin": false
+}
+```
+
+**Validation Rules:**
+- `name`: Required, 1-255 characters
+- `email`: Required, valid email format
+- `password`: Required, 6-100 characters — this is a temporary/initial password; the user must change it on first login
+- `company_id`: Optional UUID. If omitted, the new user inherits the creating admin's `company_id`. **If provided, it's used as-is with no check that it matches the caller's own company** — a company admin can currently create a user in a different company by passing its id explicitly. See the multi-tenancy note under [Multi-Tenancy Features](#multi-tenancy-features).
+- `isadmin`: Optional boolean, defaults to `false`
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "user": {
+      "id": "user-id",
+      "name": "New User",
+      "email": "newuser@example.com",
+      "isadmin": false,
+      "is_super_admin": false,
+      "company_id": "company-id",
+      "slug": "new-user-ab12cd",
+      "active": true,
+      "must_change_password": true,
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "company": {
+        "id": "company-id",
+        "name": "Acme Corp",
+        "description": "Company description"
+      }
+    }
+  }
+}
+```
+Status: `201 Created`
+
+**Error Responses:**
+
+- **400 Bad Request** - Validation errors (standard `details.fieldErrors` shape)
+- **409 Conflict** - `{"success": false, "error": "User with this email already exists"}` (email match is case-insensitive)
+
+#### GET /users/{id}
+
+Get a single user by id (Super Admin only).
+
+**Headers:**
+```
+Authorization: Bearer <super_admin_access_token>
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "user-id",
+    "name": "John Doe",
+    "email": "user@example.com",
+    "isadmin": false,
+    "is_super_admin": false,
+    "company_id": "company-id",
+    "slug": "john-doe-abc123",
+    "active": true,
+    "created_at": "2024-01-01T00:00:00.000Z",
+    "updated_at": "2024-01-01T00:00:00.000Z",
+    "company": {
+      "id": "company-id",
+      "name": "Acme Corp",
+      "description": "Company description"
+    }
+  }
+}
+```
+
+**Note:** Unlike every other user endpoint, this response is not nested under `data.user` — the user object is `data` itself. Field names are also `created_at`/`updated_at` (snake_case) here, not `createdAt`/`updatedAt`.
+
+**Error Responses:**
+- **404 Not Found** - `{"success": false, "error": "User not found"}`
+
+#### PUT /users/{id}
+
+Update a user's admin/company/active status (Super Admin only). This endpoint does not update `name`, `email`, or `password`.
+
+**Headers:**
+```
+Authorization: Bearer <super_admin_access_token>
+```
+
+**Request Body:** (all fields optional — only fields present are updated)
+```json
+{
+  "isadmin": true,
+  "is_super_admin": false,
+  "company_id": "company-id",
+  "active": true
+}
+```
+
+**Validation Rules:**
+- At least one of `isadmin`, `is_super_admin`, `company_id`, `active` must be present, or the request returns `400 Bad Request` (`"No fields to update"`)
+- `company_id`: pass `""` to clear it (stored as `NULL`)
+- No schema validation beyond presence — passing the wrong type for a field will surface as a database error, not a `400`
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "user-id",
+    "name": "John Doe",
+    "email": "user@example.com",
+    "isadmin": true,
+    "is_super_admin": false,
+    "company_id": "company-id",
+    "active": true
+  }
+}
+```
+
+**Note:** Same flat-response caveat as `GET /users/{id}` — this is not nested under `data.user`.
+
+**Error Responses:**
+- **400 Bad Request** - `{"success": false, "error": "No fields to update"}`
+- **404 Not Found** - `{"success": false, "error": "User not found"}`
+
+There is no `DELETE /users/{id}` — user removal is not exposed via the REST API.
+
+#### PUT /users/{id}/password
+
+Admin resets another user's password.
+
+**Headers:**
+```
+Authorization: Bearer <admin_access_token>
+```
+
+**Request Body:**
+```json
+{
+  "newPassword": "newpassword456",
+  "requireChange": true
+}
+```
+
+**Validation Rules:**
+- `newPassword`: Required, 6-100 characters
+- `requireChange`: Optional boolean, defaults to `true` — sets `must_change_password` on the target user
+
+**Authorization:** Company admins (`isadmin`) may only reset passwords for users in their own company; super admins may reset any user's password.
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Password reset successfully",
+  "data": {
+    "must_change_password": true
+  }
+}
+```
+
+**Error Responses:**
+
+- **400 Bad Request** - Validation errors (standard `details.fieldErrors` shape)
+- **403 Forbidden** - `{"success": false, "error": "Cannot reset password for users in other companies"}` (company admin targeting a user outside their company)
+- **404 Not Found** - `{"success": false, "error": "User not found"}`
+
+### Company Management
+
+#### GET /companies
+
+List all companies (Super Admin only).
+
+**Headers:**
+```
+Authorization: Bearer <super_admin_access_token>
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "company-id",
+      "name": "Acme Corp",
+      "description": "Company description",
+      "created_at": "2024-01-01T00:00:00.000Z",
+      "updated_at": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+**Note:** Unlike the paginated `GET /users`, this returns every company as a flat array under `data` — no pagination, no `data.companies` wrapper.
+
+#### POST /companies
+
+Create a new company (Super Admin only).
+
+**Headers:**
+```
+Authorization: Bearer <super_admin_access_token>
+```
+
+**Request Body:**
+```json
+{
+  "name": "Acme Corp",
+  "description": "Company description"
+}
+```
+
+**Validation Rules:**
+- `name`: Required (non-empty; no length/format check), must be unique
+- `description`: Optional
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "company-id",
+    "name": "Acme Corp",
+    "description": "Company description",
+    "created_at": "2024-01-01T00:00:00.000Z",
+    "updated_at": "2024-01-01T00:00:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+- **400 Bad Request** - `{"success": false, "error": "Company name is required"}`
+- **409 Conflict** - `{"success": false, "error": "Company with this name already exists"}`
+
+#### GET /companies/{id}
+
+Get a single company by id (Super Admin only).
+
+**Headers:**
+```
+Authorization: Bearer <super_admin_access_token>
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "company-id",
+    "name": "Acme Corp",
+    "description": "Company description",
+    "created_at": "2024-01-01T00:00:00.000Z",
+    "updated_at": "2024-01-01T00:00:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+- **404 Not Found** - `{"success": false, "error": "Company not found"}`
+
+#### PUT /companies/{id}
+
+Update a company (Super Admin only).
+
+**Headers:**
+```
+Authorization: Bearer <super_admin_access_token>
+```
+
+**Request Body:** (all fields optional — only fields present are updated)
+```json
+{
+  "name": "Acme Corp Renamed",
+  "description": "Updated description"
+}
+```
+
+**Validation Rules:**
+- At least one of `name`, `description` must be present, or the request returns `400 Bad Request` (`"No fields to update"`)
+- `description`: pass `""` to clear it (stored as `NULL`)
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "company-id",
+    "name": "Acme Corp Renamed",
+    "description": "Updated description",
+    "created_at": "2024-01-01T00:00:00.000Z",
+    "updated_at": "2024-01-01T12:00:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+- **400 Bad Request** - `{"success": false, "error": "No fields to update"}`
+- **404 Not Found** - `{"success": false, "error": "Company not found"}`
+- **409 Conflict** - `{"success": false, "error": "Company with this name already exists"}`
+
+#### DELETE /companies/{id}
+
+Delete a company (Super Admin only). Runs in a transaction: every user with this `company_id` has it set to `NULL` before the company row is deleted — users are not deleted.
+
+**Headers:**
+```
+Authorization: Bearer <super_admin_access_token>
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "deleted": { "id": "company-id", "name": "Acme Corp" },
+    "message": "Company deleted successfully. All associated users have been unlinked."
+  }
+}
+```
+
+**Error Responses:**
+- **404 Not Found** - `{"success": false, "error": "Company not found"}`
+
+Invitations have no REST API — they're handled exclusively through server actions (`app/actions/admin/invitation-actions.ts`) used by the web dashboard, not through `/api/v1/`.
+
 ## Error Responses
 
 All error responses follow this format:
@@ -734,9 +1101,6 @@ All error responses follow this format:
   "details": {
     "formErrors": ["Top-level form errors (e.g., cross-field validation)"],
     "fieldErrors": {
-      "fieldName": "First error message for this field"
-    },
-    "fieldErrorsAll": {
       "fieldName": ["All error messages for this field"]
     }
   }
@@ -745,8 +1109,7 @@ All error responses follow this format:
 
 **Error Details Structure:**
 - `formErrors`: Array of top-level form errors (e.g., cross-field validation like password confirmation)
-- `fieldErrors`: Object mapping field names to their first error message (useful for inline UI validation)
-- `fieldErrorsAll`: Object mapping field names to arrays of all error messages for that field
+- `fieldErrors`: Object mapping field names to an array of all error messages for that field
 
 **Example Error Response:**
 ```json
@@ -756,10 +1119,6 @@ All error responses follow this format:
   "details": {
     "formErrors": [],
     "fieldErrors": {
-      "email": "Invalid email",
-      "password": "Password must be more than 6 characters"
-    },
-    "fieldErrorsAll": {
       "email": ["Invalid email"],
       "password": ["Password must be more than 6 characters"]
     }
@@ -1033,13 +1392,10 @@ user_data = response.json()
 The API supports multi-tenant architecture with company isolation:
 
 ### Company Management
-- **Super Admin Only**: Company CRUD operations are restricted to super admins
-- **Company Isolation**: Regular admins can only manage users within their assigned company
-- **Company Assignment**: Super admins can assign users to companies during user creation/update
+- **Super Admin Only**: Company CRUD operations (`/companies*`) are restricted to super admins
 
 ### User Management
-- **Company Scoping**: User queries are automatically filtered by company for regular admins
-- **Super Admin Override**: Super admins can view and manage all users across all companies
+- **⚠️ Not company-scoped on this REST API**: `GET /users` returns users from every company to any admin token (company or super admin) — it does not filter by the caller's `company_id`. `POST /users` accepts an arbitrary `company_id` in the request body from a company admin, which is used as-is (no check that it matches the caller's own company). Only `GET/PUT /users/{id}` are super-admin-gated. This differs from the web dashboard's server actions (`app/actions/admin/user-actions.ts`), which do scope user queries/creation to the acting admin's own company — treat this as a known gap in the REST surface, not a guarantee to rely on.
 - **Company Assignment**: Users can be assigned to companies or remain unassigned
 
 ### Invitation System

@@ -19,13 +19,15 @@ Set the `ALLOWED_ORIGINS` environment variable to specify which origins are allo
 
 ```bash
 # Allow specific origins (recommended for production)
-ALLOWED_ORIGINS="http://localhost:3000,http://localhost:3001,https://yourdomain.com"
+ALLOWED_ORIGINS="http://localhost:13203,https://yourdomain.com"
 
 # Allow all origins (development only - not recommended for production)
 ALLOWED_ORIGINS="*"
 ```
 
-If `ALLOWED_ORIGINS` is not set, it defaults to `http://localhost:3000,http://localhost:3001`.
+If `ALLOWED_ORIGINS` is not set, it defaults to `http://localhost:3000,http://localhost:3001` (`app/lib/api-middleware.ts`) — in practice this repo's dev container always sets `ALLOWED_ORIGINS` (default `http://localhost:13203`, see `dev.env.example`), so this fallback rarely applies.
+
+Origin matching is a strict, case-sensitive string comparison against the values in `ALLOWED_ORIGINS`, with no trailing-slash normalization — `http://localhost:13203/` would not match `http://localhost:13203`.
 
 ### When Origin Header is Not Sent
 
@@ -48,12 +50,20 @@ If `ALLOWED_ORIGINS` is not set, it defaults to `http://localhost:3000,http://lo
 
 The following CORS headers are automatically added to all API responses:
 
-- `Access-Control-Allow-Origin`: The allowed origin (or `*` if configured)
 - `Access-Control-Allow-Methods`: `GET, POST, PUT, DELETE, OPTIONS, PATCH`
 - `Access-Control-Allow-Headers`: `Content-Type, Authorization, X-Requested-With, Accept, Origin`
-- `Access-Control-Allow-Credentials`: `true`
 - `Access-Control-Max-Age`: `86400` (24 hours)
 - `Access-Control-Expose-Headers`: `X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset`
+
+`Access-Control-Allow-Origin` and `Access-Control-Allow-Credentials` depend on the request's `Origin` header and `ALLOWED_ORIGINS` (`getCorsHeaders()` in `app/lib/api-middleware.ts`):
+
+| Case | `Allow-Origin` | `Allow-Credentials` |
+|------|-----------------|----------------------|
+| `ALLOWED_ORIGINS` includes `*` and request sends an `Origin` | that origin is echoed back (never the literal `*`, since `*` can't be combined with credentials) | `true` |
+| `ALLOWED_ORIGINS` includes `*` and no `Origin` sent | `*` | `false` |
+| `Origin` sent and it's in `ALLOWED_ORIGINS` | that origin | `true` |
+| `Origin` sent but NOT in `ALLOWED_ORIGINS` | **omitted** — the browser blocks the request | `true` (set anyway, but moot without `Allow-Origin`) |
+| No `Origin` sent, no wildcard | first entry in `ALLOWED_ORIGINS` | `true` |
 
 ## Implementation Details
 
@@ -125,14 +135,7 @@ To debug CORS issues, check the browser's Network tab for:
 
 ## API Endpoints with CORS
 
-All auth API endpoints support CORS:
-
-- `POST /api/v1/auth/login`
-- `POST /api/v1/auth/register`
-- `POST /api/v1/auth/logout`
-- `POST /api/v1/auth/refresh`
-- `GET /api/v1/auth/verify`
-- `POST /api/v1/auth/setup`
+Every route under `/api/v1/` supports CORS — `auth/*`, `users/*` (including `me` and password management), and `companies/*` all call `addCorsHeaders()` on their responses. See [API_DOCUMENTATION.md](./API_DOCUMENTATION.md) for the full endpoint list.
 
 ## Example Frontend Usage
 

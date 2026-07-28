@@ -21,8 +21,12 @@ Multi-tenant authentication system with dual auth: NextAuth sessions for the web
 
 ### Dual Authentication System
 
-- **Web UI (NextAuth v5)**: Credentials provider in `auth.config.ts` → bcrypt password verification → session token. Protected routes validated in `middleware.ts` via `getToken()`.
+- **Web UI (NextAuth v5)**: Credentials provider in `auth.config.ts` → bcrypt password verification → session token. Protected routes validated in `middleware.ts` via `getToken()`. Behind a reverse proxy, `getToken()` doesn't auto-detect HTTPS termination — `secureCookie` must be passed explicitly from `x-forwarded-proto`, or it looks for the wrong (`__Secure-`-prefixed vs not) cookie name and never finds the session. Redirect `Location` URLs are likewise rebuilt from `x-forwarded-host`/`x-forwarded-proto` rather than `req.nextUrl`, which reflects the proxy's plain-HTTP connection to the container. See the comments in `middleware.ts` for the full reasoning.
 - **REST API (Custom JWT)**: `POST /api/v1/auth/login` → access token (1h) + refresh token (7d, stored in DB). API routes validate via `apiMiddleware()` in `app/lib/api-middleware.ts`.
+
+### Mandatory Password Change
+
+A `must_change_password` boolean on `users` gates dashboard access: `middleware.ts` redirects any authenticated web session with the flag set to `/dashboard/change-password` and refuses every other protected route until it's cleared. The flag is set when: a bootstrap admin is created (`scripts/bootstrap-admin.mjs`), a user is created via `POST /api/v1/users`, or an admin forces a reset via `PUT /api/v1/users/{id}/password`. It's cleared on any successful self-service password change (`app/actions/profile-actions.ts` for the web UI, `PUT /api/v1/users/me/password` for the API) — the web UI additionally calls NextAuth's `updateSession()` so the session JWT's copy of the flag refreshes immediately instead of on next login.
 
 ### Role Hierarchy
 
@@ -51,9 +55,10 @@ Multi-tenant authentication system with dual auth: NextAuth sessions for the web
 
 All REST endpoints live under `/api/v1/`:
 - `/auth/` — login, register, logout, refresh, verify, setup
-- `/users/` — CRUD, `me`, password management
+- `/users/` — create, list, get-by-id, update (no delete), `me`, password management
 - `/companies/` — CRUD (super admin only)
-- `/invitations/` — invitation management
+
+Invitations have no REST API — they're handled exclusively through server actions (`app/actions/admin/invitation-actions.ts`), used by the web dashboard only.
 
 ### Database
 

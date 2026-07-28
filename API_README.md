@@ -22,7 +22,7 @@ POSTGRES_URL=your-postgres-connection-string
 
 ### 2. Setup Database
 
-Run the setup endpoint to create necessary tables:
+The `users`/`companies`/`invitations`/`api_refresh_tokens` schema and sample data are created automatically on container startup — see [README.md](./README.md#database-seeding) and [CLAUDE.md](./CLAUDE.md). `POST /api/v1/auth/setup` is a legacy, idempotent endpoint that only (re-)ensures `api_refresh_tokens` exists; it does not create `users`/`companies`/`invitations` and isn't required for normal setup:
 
 ```bash
 curl -X POST http://localhost:3000/api/v1/auth/setup
@@ -56,7 +56,26 @@ The API will be available at `http://localhost:3000/api/v1`
 |--------|----------|-------------|---------------|------------|
 | GET | `/users/me` | Get current user profile | Yes | No |
 | PUT | `/users/me` | Update current user profile | Yes | No |
+| PUT | `/users/me/password` | Change own password | Yes | No |
 | GET | `/users` | Get all users | Yes | Yes |
+| POST | `/users` | Create a user | Yes | Yes |
+| GET | `/users/{id}` | Get a user by id | Yes | Yes (super admin) |
+| PUT | `/users/{id}` | Update a user by id | Yes | Yes (super admin) |
+| PUT | `/users/{id}/password` | Force-reset a user's password | Yes | Yes |
+
+There's no `DELETE /users/{id}` — user removal isn't exposed via the REST API.
+
+### Company Management
+
+| Method | Endpoint | Description | Auth Required | Admin Only |
+|--------|----------|-------------|---------------|------------|
+| GET | `/companies` | List companies | Yes | Yes (super admin) |
+| POST | `/companies` | Create a company | Yes | Yes (super admin) |
+| GET | `/companies/{id}` | Get a company by id | Yes | Yes (super admin) |
+| PUT | `/companies/{id}` | Update a company | Yes | Yes (super admin) |
+| DELETE | `/companies/{id}` | Delete a company | Yes | Yes (super admin) |
+
+Invitations have no REST endpoints — they're handled by the web dashboard's server actions only.
 
 ## 🔧 Usage Examples
 
@@ -130,15 +149,21 @@ See [API_DOCUMENTATION.md](./API_DOCUMENTATION.md) for complete API documentatio
 ```
 app/api/v1/
 ├── auth/
-│   ├── login/route.ts      # User login
-│   ├── register/route.ts   # User registration
-│   ├── refresh/route.ts    # Token refresh
-│   ├── logout/route.ts     # User logout
-│   ├── verify/route.ts     # Token verification
-│   └── setup/route.ts      # Database setup
-└── users/
-    ├── me/route.ts         # Current user operations
-    └── route.ts            # User management (admin)
+│   ├── login/route.ts              # User login
+│   ├── register/route.ts           # User registration
+│   ├── refresh/route.ts            # Token refresh
+│   ├── logout/route.ts             # User logout
+│   ├── verify/route.ts             # Token verification
+│   └── setup/route.ts              # Database setup
+├── users/
+│   ├── route.ts                    # List / create users (admin)
+│   ├── me/route.ts                 # Current user profile
+│   ├── me/password/route.ts        # Current user password change
+│   ├── [id]/route.ts               # Get / update a user (super admin)
+│   └── [id]/password/route.ts      # Force-reset a user's password (admin)
+└── companies/
+    ├── route.ts                    # List / create companies (super admin)
+    └── [id]/route.ts               # Get / update / delete a company (super admin)
 ```
 
 ## 🔧 Configuration

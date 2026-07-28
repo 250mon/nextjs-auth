@@ -697,7 +697,7 @@ Authorization: Bearer <access_token>
 
 #### GET /users
 
-Get list of users (Admin only). **Not company-scoped** — a company admin's token sees users from every company, not just their own. See the note under [Multi-Tenancy Features](#multi-tenancy-features).
+Get list of users (Admin only). Company admins only see users in their own company; super admins see all companies.
 
 **Headers:**
 ```
@@ -745,6 +745,9 @@ Authorization: Bearer <admin_access_token>
 
 **Note:** The `company` field will be `null` if a user is not associated with a company.
 
+**Error Responses:**
+- **403 Forbidden** - `{"success": false, "error": "You must be associated with a company to view users"}` (company admin with no `company_id`)
+
 #### POST /users
 
 Create a new user (Admin only — company admins and super admins). The new user is created with `must_change_password: true`.
@@ -769,7 +772,7 @@ Authorization: Bearer <admin_access_token>
 - `name`: Required, 1-255 characters
 - `email`: Required, valid email format
 - `password`: Required, 6-100 characters — this is a temporary/initial password; the user must change it on first login
-- `company_id`: Optional UUID. If omitted, the new user inherits the creating admin's `company_id`. **If provided, it's used as-is with no check that it matches the caller's own company** — a company admin can currently create a user in a different company by passing its id explicitly. See the multi-tenancy note under [Multi-Tenancy Features](#multi-tenancy-features).
+- `company_id`: Optional UUID. If omitted, the new user inherits the creating admin's `company_id`. A company admin may only pass their own `company_id` (passing any other returns `403 Forbidden`); only super admins may create a user in an arbitrary or no company
 - `isadmin`: Optional boolean, defaults to `false`
 
 **Response:**
@@ -804,6 +807,7 @@ Status: `201 Created`
 
 - **400 Bad Request** - Validation errors (standard `details.fieldErrors` shape)
 - **409 Conflict** - `{"success": false, "error": "User with this email already exists"}` (email match is case-insensitive)
+- **403 Forbidden** - `{"success": false, "error": "Cannot create users in other companies"}` (non-super-admin passing a `company_id` other than their own)
 
 #### GET /users/{id}
 
@@ -1395,8 +1399,9 @@ The API supports multi-tenant architecture with company isolation:
 - **Super Admin Only**: Company CRUD operations (`/companies*`) are restricted to super admins
 
 ### User Management
-- **⚠️ Not company-scoped on this REST API**: `GET /users` returns users from every company to any admin token (company or super admin) — it does not filter by the caller's `company_id`. `POST /users` accepts an arbitrary `company_id` in the request body from a company admin, which is used as-is (no check that it matches the caller's own company). Only `GET/PUT /users/{id}` are super-admin-gated. This differs from the web dashboard's server actions (`app/actions/admin/user-actions.ts`), which do scope user queries/creation to the acting admin's own company — treat this as a known gap in the REST surface, not a guarantee to rely on.
-- **Company Assignment**: Users can be assigned to companies or remain unassigned
+- **Company Scoping**: `GET /users` is filtered to the caller's own `company_id` for company admins (super admins see every company). A company admin's `company_id` must be set, or the request returns `403 Forbidden`
+- **Company Assignment on Create**: `POST /users` defaults new users to the creating admin's own company; a company admin passing a `company_id` other than their own gets `403 Forbidden`. Only super admins may create a user in an arbitrary (or no) company
+- **Super Admin Override**: Super admins can view and manage users across all companies; `GET/PUT /users/{id}` remain super-admin-only
 
 ### Invitation System
 - **Company-Scoped Invitations**: Admins can only send invitations for their company

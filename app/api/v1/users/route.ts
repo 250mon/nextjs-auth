@@ -6,27 +6,44 @@ import bcrypt from "bcryptjs";
 
 export async function GET(request: NextRequest) {
   const middlewareResult = await apiMiddleware(request, { requireAdmin: true });
-  
+
   if (!middlewareResult.success) {
     return middlewareResult.response!;
   }
-  
+
+  // Company isolation: company admins can only see users in their own
+  // company; only super admins can see across all companies.
+  if (!middlewareResult.user?.is_super_admin && !middlewareResult.user?.company_id) {
+    const response = NextResponse.json(
+      { success: false, error: "You must be associated with a company to view users" },
+      { status: 403 }
+    );
+    return addCorsHeaders(response);
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
     const search = searchParams.get("search") || "";
     const offset = (page - 1) * limit;
-    
+
     // Build query
-    let whereClause = "";
+    const conditions: string[] = [];
     const queryParams: string[] = [];
-    
+
     if (search) {
-      whereClause = "WHERE u.name ILIKE $1 OR u.email ILIKE $1";
       queryParams.push(`%${search}%`);
+      conditions.push(`(u.name ILIKE $${queryParams.length} OR u.email ILIKE $${queryParams.length})`);
     }
-    
+
+    if (!middlewareResult.user?.is_super_admin && middlewareResult.user?.company_id) {
+      queryParams.push(middlewareResult.user.company_id);
+      conditions.push(`u.company_id = $${queryParams.length}`);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
     // Get total count
     const countQuery = `SELECT COUNT(*) FROM users u ${whereClause}`;
     const countResult = await query(countQuery, queryParams);
@@ -154,8 +171,21 @@ export async function POST(request: NextRequest) {
     const uniqueId = Math.random().toString(36).substring(2, 8);
     const slug = `${baseSlug}-${uniqueId}`;
 
-    // Determine company_id: use provided one, or inherit from admin creating the user
-    const finalCompanyId = company_id || middlewareResult.user?.company_id || null;
+    // Determine company_id: super admins may create a user in any company (or
+    // none); company admins can only create users within their own company.
+    let finalCompanyId: string | null;
+    if (middlewareResult.user?.is_super_admin) {
+      finalCompanyId = company_id ?? null;
+    } else {
+      if (company_id && company_id !== middlewareResult.user?.company_id) {
+        const response = NextResponse.json(
+          { success: false, error: "Cannot create users in other companies" },
+          { status: 403 }
+        );
+        return addCorsHeaders(response, origin || undefined);
+      }
+      finalCompanyId = middlewareResult.user?.company_id ?? null;
+    }
 
     // Insert user with must_change_password = true
     const result = await query(

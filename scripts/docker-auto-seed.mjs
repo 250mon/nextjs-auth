@@ -31,7 +31,7 @@ const users = [
   {
     id: "410544b2-4001-4271-9855-fec4b6a6442a",
     name: "User",
-    email: "user@danaul.com",
+    email: "user@clinic.example",
     password: "123456",
     isadmin: false,
     is_super_admin: false,
@@ -41,7 +41,7 @@ const users = [
   {
     id: "410544b2-4001-4271-9855-fec4b6a6442b",
     name: "Admin",
-    email: "admin@danaul.com",
+    email: "admin@clinic.example",
     password: "123456",
     isadmin: true,
     is_super_admin: true,
